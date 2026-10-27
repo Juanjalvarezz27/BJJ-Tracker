@@ -464,7 +464,7 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] dark:bg-black text-black dark:text-white flex flex-col justify-between selection:bg-[#007AFF]/20">
+    <div className="min-h-[100dvh] bg-[#f5f5f7] dark:bg-black text-black dark:text-white flex flex-col justify-between selection:bg-[#007AFF]/20 safe-top">
       {/* Contenido dinamico segun la pestaña activa */}
       <main className="flex-1 w-full">
         {activeTab === "posiciones" ? (
@@ -509,8 +509,8 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
 
       {/* Modal Agregar Movimiento */}
       {isAddTechModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-white dark:bg-[#1c1c1e] rounded-t-3xl sm:rounded-3xl border border-black/[0.08] dark:border-white/[0.08] p-5 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-150 safe-top">
+          <div className="w-full max-w-md bg-white dark:bg-[#1c1c1e] rounded-t-3xl sm:rounded-3xl border border-black/[0.08] dark:border-white/[0.08] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3">
               <div>
                 <h3 className="font-bold text-base text-black dark:text-white">
@@ -530,7 +530,7 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
             </div>
 
             <form onSubmit={handleCreateTechnique} className="space-y-4">
-              {/* Selector de Posicion Padre */}
+              {/* Selector de Posicion de Origen */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                   Posición de origen *
@@ -601,8 +601,8 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
 
       {/* Modal Nueva Posicion */}
       {isAddPosModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-white dark:bg-[#1c1c1e] rounded-t-3xl sm:rounded-3xl border border-black/[0.08] dark:border-white/[0.08] p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-150 safe-top">
+          <div className="w-full max-w-md bg-white dark:bg-[#1c1c1e] rounded-t-3xl sm:rounded-3xl border border-black/[0.08] dark:border-white/[0.08] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3">
               <h3 className="font-bold text-base text-black dark:text-white">
                 Nueva Posición de Jiu-Jitsu
@@ -763,8 +763,8 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
 
       {/* Modal Editar Posicion */}
       {isEditPosModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-white dark:bg-[#1c1c1e] rounded-t-3xl sm:rounded-3xl border border-black/[0.08] dark:border-white/[0.08] p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-150 safe-top">
+          <div className="w-full max-w-md bg-white dark:bg-[#1c1c1e] rounded-t-3xl sm:rounded-3xl border border-black/[0.08] dark:border-white/[0.08] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3">
               <h3 className="font-bold text-base text-black dark:text-white">
                 Editar Posición
@@ -932,7 +932,7 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 safe-top safe-bottom animate-in fade-in duration-150"
         >
           <div
             onClick={(e) => e.stopPropagation()}

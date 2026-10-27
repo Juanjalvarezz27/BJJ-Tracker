@@ -54,12 +54,13 @@ export async function getPositionsAction(): Promise<PositionWithRelations[]> {
       return existing;
     }
 
-    // Inicializacion con las 4 categorias principales
+    // Inicializacion con las categorias principales activas
     const mainCategories = [
       { name: "Posiciones", sortOrder: 1 },
       { name: "Guardias", sortOrder: 2 },
-      { name: "Derribos", sortOrder: 3 },
-      { name: "Pases", sortOrder: 4 },
+      { name: "Leg Locks", sortOrder: 3 },
+      { name: "Derribos", sortOrder: 4 },
+      { name: "Pases", sortOrder: 5 },
     ];
 
     const catMap: Record<string, string> = {};
@@ -198,6 +199,165 @@ export async function getPositionsAction(): Promise<PositionWithRelations[]> {
                 "Pasar tu brazo por encima y rodear su tríceps capturando tu propia muñeca en figura de 4.",
                 "Dar un paso sobre su cabeza para neutralizar su puente.",
                 "Girar los hombros y llevar la mano en arco hacia su espalda alta.",
+              ],
+            },
+          ],
+        },
+      },
+      {
+        title: "De Pie",
+        subtitle: "Standing / Lucha de Pie / Tachi-Waza",
+        description: "Fase inicial de combate. Trabajo de agarres (Kumi-kata), control de distancia, desequilibrios (Kuzushi) y transiciones a derribos o tirones a guardia.",
+        imageUrl: "/assets/Depie.png",
+        categoryId: catMap["Posiciones"],
+        sortOrder: 4,
+        notes: "Establecer primero el agarre dominante de solapa o cuello antes de atacar o recibir el agarre del oponente.",
+        techniques: {
+          create: [
+            {
+              title: "Derribo a Dos Piernas (Double Leg)",
+              sortOrder: 1,
+              steps: [
+                "Cambiar de nivel flexionando las rodillas mientras rompes el agarre del rival.",
+                "Dar un paso de penetración profundo colocando la rodilla delantera en el tatami entre sus pies.",
+                "Abrazar con ambos brazos la parte posterior de sus rodillas tirando hacia tu pecho.",
+                "Pegar la cabeza firmemente a sus costillas/cadera y girar el torso hacia el lado opuesto.",
+                "Conducir hacia el suelo terminando en control lateral o guardia abierta.",
+              ],
+            },
+            {
+              title: "Tirón a Guardia (Guard Pull)",
+              sortOrder: 2,
+              steps: [
+                "Asegurar un agarre firme de solapa cruzada y manga exterior.",
+                "Colocar la planta de un pie firmemente sobre su cadera del lado de la solapa.",
+                "Dejar caer el peso de tu cadera hacia atrás y abajo al mismo tiempo que jalas hacia ti.",
+                "Cerrar tus piernas alrededor de su torso o establecer guardia abierta con control de ganchos.",
+              ],
+            },
+          ],
+        },
+      },
+      {
+        title: "Leg Locks",
+        subtitle: "Ataques de Tren Inferior / Sumisiones",
+        description: "Catálogo directo de llaves de pierna, tobillo, rodilla y talón.",
+        imageUrl: "/assets/ashi-garami.png",
+        categoryId: catMap["Leg Locks"],
+        sortOrder: 1,
+        notes: "Asegurar el control de la cadera y rotación del fémur antes de atacar las articulaciones del pie o rodilla.",
+        techniques: {
+          create: [
+            {
+              title: "Straight Ankle Lock (Llave de Tobillo)",
+              sortOrder: 1,
+              steps: [
+                "Aislar el tobillo del adversario fijándolo fuertemente bajo la axila.",
+                "Cerrar la mordida con el hueso radial presionando directamente sobre el tendón de Aquiles.",
+                "Unir manos en agarre guillotine o butterfly bien pegado al esternón.",
+                "Mirar por encima del hombro exterior arqueando la espalda para provocar el tap.",
+              ],
+            },
+            {
+              title: "Inside Heel Hook (Gancho de Talón Interno)",
+              sortOrder: 2,
+              steps: [
+                "Controlar la rotación del fémur apretando las rodillas con el triángulo.",
+                "Recoger el talón expuesto en la curva de tu muñeca o antebrazo.",
+                "Juntar las manos firmemente en agarre gable o palmas.",
+                "Rotar los hombros suavemente en sentido horario manteniendo las caderas pegadas.",
+              ],
+            },
+            {
+              title: "Outside Heel Hook (Gancho de Talón Externo)",
+              sortOrder: 3,
+              steps: [
+                "Aislar la pierna con control exterior de Ashi Garami o 50/50.",
+                "Enganchar la punta del talón con la flexura del codo o muñeca.",
+                "Unir las manos en agarre figura de 4 o gable apretado.",
+                "Rotar la cadera en puente hacia el exterior con control estricto.",
+              ],
+            },
+            {
+              title: "Kneebar (Palanca de Rodilla)",
+              sortOrder: 4,
+              steps: [
+                "Atrapar la pierna del rival extendida entre tus muslos y cadera.",
+                "Presionar las rodillas contra su muslo asegurando que su rótula apunte a tu esternón.",
+                "Abrazar el tobillo o talón con ambos brazos fuertemente contra tu pecho.",
+                "Empujar suavemente la cadera hacia arriba aplicando palanca a la articulación.",
+              ],
+            },
+          ],
+        },
+      },
+      {
+        title: "Proyecciones de Judo",
+        subtitle: "Judo Throws / Nage-Waza / Osoto Gari",
+        description: "Técnicas de proyección y derribo originarias del Judo adaptadas al BJJ. Máximo impacto y desestabilización desde la lucha de pie.",
+        imageUrl: "/assets/derribo-osoto.png",
+        categoryId: catMap["Derribos"],
+        sortOrder: 1,
+        notes: "El Kuzushi (desequilibrio) es 90% del éxito; no intentar barrer sin romper su postura primero.",
+        techniques: {
+          create: [
+            {
+              title: "Osoto Gari (Gran Siega Exterior)",
+              sortOrder: 1,
+              steps: [
+                "Asegurar agarre de solapa con mano dominante y manga a la altura del codo.",
+                "Dar paso profundo hacia adelante con el pie de apoyo al lado del pie del rival.",
+                "Traccionar la solapa y manga para transferir todo el peso del rival a su talón trasero.",
+                "Lanzar la pierna de ataque hacia adelante y luego segar con fuerza hacia atrás detrás de su rodilla.",
+                "Conducir el torso hacia adelante para caer en control lateral dominante.",
+              ],
+            },
+          ],
+        },
+      },
+      {
+        title: "Pase del Torero",
+        subtitle: "Toreando Pass / Pase Torero",
+        description: "Pase clásico y explosivo de pie. Controla el exterior de las rodillas del rival para redirigir sus piernas hacia un costado mientras entras al control lateral.",
+        imageUrl: "/assets/pase-torero.png",
+        categoryId: catMap["Pases"],
+        sortOrder: 1,
+        notes: "Usa el movimiento circular de cadera como un torero evitando el enviste, no intentes ganar sólo empujando con los brazos.",
+        techniques: {
+          create: [
+            {
+              title: "Pase del Torero con Desvío Lateral",
+              sortOrder: 1,
+              steps: [
+                "Sujetar firmemente la tela del pantalón en el exterior de ambas rodillas con puños cerrados.",
+                "Empujar las rodillas del rival hacia su pecho para forzar tensión y rebote.",
+                "Dar un paso explosivo hacia un lado mientras arrojas sus piernas al lado opuesto como un capote.",
+                "Bajar el pecho inmediatamente sobre su esternón para bloquear su recuperación de guardia.",
+                "Asegurar control lateral o posición de 100 kilos con esgrima pesada.",
+              ],
+            },
+          ],
+        },
+      },
+      {
+        title: "Knee Cut Pass",
+        subtitle: "Pase de Rodilla / Knee Slice Pass",
+        description: "Pase dinámico y agresivo cortando la media guardia o guardia abierta con la rodilla en diagonal hacia la lona, fijando al rival con underhook y crossface.",
+        imageUrl: "/assets/Kneecutpass.png",
+        categoryId: catMap["Pases"],
+        sortOrder: 2,
+        notes: "El underhook profundo es fundamental. Sin él, el oponente puede rodear tu cintura y tomar tu espalda.",
+        techniques: {
+          create: [
+            {
+              title: "Knee Cut Pass Clásico",
+              sortOrder: 1,
+              steps: [
+                "Establecer control de solapa cruzada o crossface pesado para aplanar los hombros del rival.",
+                "Ganar el underhook (esgrima) profundo en el lado opuesto para neutralizar su contraataque.",
+                "Cortar con la rodilla en diagonal sobre su muslo clavándola directamente contra el tatami.",
+                "Liberar el pie enganchado pateando hacia atrás con el empeine (backstep sutil).",
+                "Bajar el centro de gravedad pegando el pecho para consolidar el control lateral dominante.",
               ],
             },
           ],

@@ -22,7 +22,7 @@ interface PositionsViewProps {
   onDeleteMediaLink?: (linkId: string, positionId: string) => void;
 }
 
-// Descripciones contextuales para las 4 categorías principales
+// Descripciones contextuales para las categorías principales
 const CATEGORY_META: Record<
   string,
   { subtitle: string; emptyTitle: string; emptyDesc: string; btnLabel: string }
@@ -39,16 +39,22 @@ const CATEGORY_META: Record<
     emptyDesc: "Añade variantes como Media Guardia, Mariposa o De la Riva.",
     btnLabel: "Registrar Guardia",
   },
+  "Leg Locks": {
+    subtitle: "Controles de tren inferior, enredos y sumisiones",
+    emptyTitle: "Sin posiciones registradas",
+    emptyDesc: "Añade posiciones como Ashi Garami, Inside Sankaku o 50/50.",
+    btnLabel: "Registrar Posición",
+  },
   Derribos: {
     subtitle: "Lucha de pie, proyecciones y desequilibrios (Kuzushi)",
     emptyTitle: "Sin derribos registrados aún",
-    emptyDesc: "Registra técnicas como Single Leg, Double Leg o derribos de judo.",
+    emptyDesc: "Registra técnicas como Osoto Gari, Seoi Nage o derribos de lucha.",
     btnLabel: "Registrar Derribo",
   },
   Pases: {
     subtitle: "Superación de guardias y aperturas de defensa",
     emptyTitle: "Sin pases registrados aún",
-    emptyDesc: "Registra pases como Toreando, Knee Slice o Pase de Presión.",
+    emptyDesc: "Registra pases como Knee Cut, Toreando o Pase de Presión.",
     btnLabel: "Registrar Pase",
   },
 };
@@ -104,6 +110,58 @@ function TechniqueIllustration({ title, index }: { title: string; index: number 
         <circle cx="40" cy="22" r="8" strokeWidth="2.5" />
         <circle cx="40" cy="46" r="10" strokeWidth="2.5" strokeDasharray="3 3" />
         <path d="M26 38c0-8 8-14 14-14s14 6 14 14-8 14-14 14" strokeWidth="2.5" strokeLinecap="round" stroke="#FF2D55" />
+      </svg>
+    );
+  }
+
+  if (
+    lower.includes("ankle") ||
+    lower.includes("tobillo") ||
+    lower.includes("heel") ||
+    lower.includes("leg") ||
+    lower.includes("saddle") ||
+    lower.includes("ashi") ||
+    lower.includes("aoki")
+  ) {
+    return (
+      <svg className="w-16 h-16 text-[#FF9500]" viewBox="0 0 80 80" fill="none" stroke="currentColor">
+        <circle cx="36" cy="24" r="7" strokeWidth="2.5" />
+        <path d="M36 31v14l16 12M36 40l-14 8M22 48l12 16M48 50l14 14" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M54 60l10-4" strokeWidth="2.5" strokeLinecap="round" stroke="#FF2D55" />
+      </svg>
+    );
+  }
+
+  if (
+    lower.includes("derribo") ||
+    lower.includes("osoto") ||
+    lower.includes("takedown") ||
+    lower.includes("proyecci") ||
+    lower.includes("judo")
+  ) {
+    return (
+      <svg className="w-16 h-16 text-[#FF453A]" viewBox="0 0 80 80" fill="none" stroke="currentColor">
+        <circle cx="32" cy="22" r="7" strokeWidth="2.5" />
+        <circle cx="54" cy="46" r="7" strokeWidth="2.5" />
+        <path d="M32 29v18l14 8M32 38l14-6M48 42l16 12M54 53l-8 14" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M26 62c6-10 18-14 26-10" strokeWidth="2" strokeLinecap="round" strokeDasharray="3 3" />
+      </svg>
+    );
+  }
+
+  if (
+    lower.includes("pase") ||
+    lower.includes("pass") ||
+    lower.includes("cut") ||
+    lower.includes("toreando") ||
+    lower.includes("torero")
+  ) {
+    return (
+      <svg className="w-16 h-16 text-[#30D158]" viewBox="0 0 80 80" fill="none" stroke="currentColor">
+        <circle cx="28" cy="24" r="7" strokeWidth="2.5" />
+        <circle cx="52" cy="42" r="7" strokeWidth="2.5" />
+        <path d="M28 31v14l16 8M28 38l12-6M44 40h16M52 49l8 15" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M22 52c12 4 20-4 28-6" strokeWidth="2.5" strokeLinecap="round" stroke="#0A84FF" />
       </svg>
     );
   }
@@ -243,7 +301,7 @@ export function PositionsView({
       };
 
       return (
-        <div className="w-full max-w-xl mx-auto px-4 py-5 space-y-6 pb-28 animate-in fade-in duration-200">
+        <div className="w-full max-w-xl mx-auto px-4 py-5 space-y-6 pb-safe-nav animate-in fade-in duration-200">
           {/* Barra superior de navegación: Cerrar + Cápsula de opciones y favorito */}
           <div className="flex items-center justify-between">
             <button
@@ -535,7 +593,7 @@ export function PositionsView({
   // Si hay una posición seleccionada, se muestra la vista de detalle de esa posición inspirada en Apple BJJ
   if (activePosition && selectedPositionId) {
     return (
-      <div className="w-full max-w-xl mx-auto px-4 py-5 space-y-6 pb-28 animate-in fade-in duration-200">
+      <div className="w-full max-w-xl mx-auto px-4 py-5 space-y-6 pb-safe-nav animate-in fade-in duration-200">
         {/* Barra superior de navegación: Cerrar, Editar, Eliminar, Compartir y Favorito */}
         <div className="flex items-center justify-between">
           <button
@@ -854,7 +912,7 @@ export function PositionsView({
   const displayedCategories = activeCategory ? [activeCategory] : [];
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-4 py-6 space-y-6 pb-28">
+    <div className="w-full max-w-2xl mx-auto px-4 py-6 space-y-6 pb-safe-nav">
       {/* Cabecera del módulo principal */}
       <header className="flex items-center justify-between border-b border-black/[0.08] dark:border-white/[0.08] pb-4">
         <div>
@@ -862,7 +920,7 @@ export function PositionsView({
             Categorías de BJJ
           </h1>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Guardias, posiciones, derribos y pases con sus técnicas
+            Posiciones, guardias, leg locks, derribos y pases con sus técnicas
           </p>
         </div>
 
@@ -878,36 +936,64 @@ export function PositionsView({
         </button>
       </header>
 
-      {/* Control segmentado superior para alternar entre las categorías */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-none">
-
-        {categories.map((cat) => {
-          const isSelected = activeCategoryId === cat.id;
-          const count = cat.positions?.length ?? 0;
-          return (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => setSelectedCategoryFilter(cat.id)}
-              className={`flex-shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 border ${
-                isSelected
-                  ? "bg-[#007AFF] border-[#007AFF] text-white shadow-xs"
-                  : "bg-white dark:bg-[#1c1c1e] border-black/[0.08] dark:border-white/[0.08] text-zinc-700 dark:text-zinc-300 hover:border-black/[0.2]"
-              }`}
+      {/* Selector de categorías optimizado para mobile y desktop */}
+      <div className="space-y-2.5">
+        {/* Selector dropdown para móviles (acceso directo e inmediato sin scrolling) */}
+        <div className="sm:hidden">
+          <div className="relative">
+            <select
+              aria-label="Seleccionar categoría"
+              value={activeCategoryId}
+              onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-2xl bg-white dark:bg-[#1c1c1e] border border-black/[0.1] dark:border-white/[0.12] text-xs font-bold text-black dark:text-white appearance-none pr-10 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#007AFF]"
             >
-              <span>{cat.name}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              {categories.map((cat) => {
+                const count = cat.positions?.length ?? 0;
+                return (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name} ({count} {count === 1 ? "posición" : "posiciones"})
+                  </option>
+                );
+              })}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[#007AFF]">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Píldoras visibles envueltas (flex-wrap) sin corte horizontal */}
+        <div className="flex flex-wrap gap-2">
+          {categories.map((cat) => {
+            const isSelected = activeCategoryId === cat.id;
+            const count = cat.positions?.length ?? 0;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategoryFilter(cat.id)}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 border ${
                   isSelected
-                    ? "bg-white/20 text-white"
-                    : "bg-black/[0.05] dark:bg-white/[0.08] text-zinc-500"
+                    ? "bg-[#007AFF] border-[#007AFF] text-white shadow-xs"
+                    : "bg-white dark:bg-[#1c1c1e] border-black/[0.08] dark:border-white/[0.08] text-zinc-700 dark:text-zinc-300 hover:border-black/[0.2]"
                 }`}
               >
-                {count}
-              </span>
-            </button>
-          );
-        })}
+                <span>{cat.name}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isSelected
+                      ? "bg-white/20 text-white"
+                      : "bg-black/[0.05] dark:bg-white/[0.08] text-zinc-500"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Secciones por categoría principal */}
@@ -920,6 +1006,8 @@ export function PositionsView({
             emptyDesc: "Registra nuevas técnicas dentro de esta categoría.",
             btnLabel: "Registrar",
           };
+
+
 
           return (
             <section key={category.id} className="space-y-3">
