@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MediaPlatform {
+  YOUTUBE
+  TIKTOK
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  imageUrl  String?
+  sortOrder Int        @default(0)
+  positions Position[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([sortOrder])
+}
+
+model Position {
+  id          String      @id @default(cuid())
+  categoryId  String?
+  category    Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  title       String
+  subtitle    String?
+  description String?
+  imageUrl    String?
+  svgIconName String?
+  sortOrder   Int         @default(0)
+  notes       String?
+  techniques  Technique[]
+  mediaLinks  MediaLink[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([sortOrder])
+}
+
+model Technique {
+  id                 String             @id @default(cuid())
+  positionId         String
+  position           Position           @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  title              String
+  steps              String[]
+  sortOrder          Int                @default(0)
+  mediaLinks         MediaLink[]
+  trainingActivities TrainingActivity[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([positionId, sortOrder])
+}
+
+model MediaLink {
+  id          String        @id @default(cuid())
+  url         String
+  platform    MediaPlatform
+  positionId  String?
+  position    Position?     @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  techniqueId String?
+  technique   Technique?    @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+
+  @@index([positionId])
+  @@index([techniqueId])
+}
+
+model TrainingActivity {
+  id           String    @id @default(cuid())
+  techniqueId  String
+  technique    Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+  date         DateTime  @default(now())
+  appliedCount Int       @default(1)
+  createdAt    DateTime  @default(now())
+
+  @@index([techniqueId, date])
+}
