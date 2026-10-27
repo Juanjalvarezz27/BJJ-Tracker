@@ -268,6 +268,7 @@ export function AllTechniquesLibraryView({
                           src={encodeURI(displayImage)}
                           alt={tech.title}
                           fill
+                          sizes="(max-width: 640px) 56px, 64px"
                           className="object-cover transition-transform duration-300 group-hover/card:scale-105"
                         />
                       ) : (
@@ -360,6 +361,7 @@ export function AllTechniquesLibraryView({
                       src={encodeURI(img)}
                       alt={selectedDetailTech.title}
                       fill
+                      sizes="(max-width: 640px) 112px, 128px"
                       className="object-cover"
                     />
                   </div>

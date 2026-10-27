@@ -999,7 +999,7 @@ export function PositionsView({
       {/* Secciones por categoría principal */}
       <div className="space-y-8">
         {displayedCategories.map((category) => {
-          const categoryPositions = category.positions || [];
+          const categoryPositions: PositionWithRelations[] = category.positions || [];
           const meta = CATEGORY_META[category.name] || {
             subtitle: "Técnicas y posiciones asociadas",
             emptyTitle: "Sin elementos registrados",
@@ -1055,7 +1055,7 @@ export function PositionsView({
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3.5 sm:gap-4">
-                  {categoryPositions.map((pos) => (
+                  {categoryPositions.map((pos: PositionWithRelations) => (
                     <div
                       key={pos.id}
                       className="group/card relative flex flex-col p-3 rounded-3xl bg-white dark:bg-[#1c1c1e] border border-black/[0.06] dark:border-white/[0.08] text-left transition-all duration-200 shadow-xs hover:shadow-md hover:border-[#007AFF]/40"

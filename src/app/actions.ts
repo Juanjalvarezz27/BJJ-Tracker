@@ -453,7 +453,14 @@ export async function uploadPositionImageAction(
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Asegurar directorio public/uploads
+    // En Vercel Serverless el sistema de archivos es read-only, usamos Base64 Data URL
+    if (process.env.VERCEL) {
+      const base64 = buffer.toString("base64");
+      const mime = file.type || "image/png";
+      return { success: true, url: `data:${mime};base64,${base64}` };
+    }
+
+    // Asegurar directorio public/uploads local
     const uploadsDir = path.join(process.cwd(), "public", "uploads");
     await fs.promises.mkdir(uploadsDir, { recursive: true });
 

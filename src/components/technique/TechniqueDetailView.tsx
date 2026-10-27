@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import type { TechniqueWithRelations } from "@/types/bjj";
+import type { TechniqueWithRelations, TrainingActivity, MediaLink } from "@/types/bjj";
 import { MediaEmbed } from "@/components/media/MediaEmbed";
 
 interface TechniqueDetailViewProps {
@@ -27,7 +27,7 @@ export function TechniqueDetailView({
     });
 
     if (technique.trainingActivities) {
-      technique.trainingActivities.forEach((act) => {
+      technique.trainingActivities.forEach((act: TrainingActivity) => {
         const actMonth = new Date(act.date).getMonth();
         const found = last6.find((m) => m.monthIndex === actMonth);
         if (found) {
@@ -41,7 +41,7 @@ export function TechniqueDetailView({
   }, [technique.trainingActivities]);
 
   const totalApplied = technique.trainingActivities?.reduce(
-    (acc, act) => acc + act.appliedCount,
+    (acc: number, act: TrainingActivity) => acc + act.appliedCount,
     0
   ) ?? 0;
 
@@ -95,7 +95,7 @@ export function TechniqueDetailView({
         </div>
 
         <div className="rounded-3xl bg-white dark:bg-zinc-900 border border-black/[0.06] dark:border-white/[0.08] p-5 shadow-sm space-y-4">
-          {technique.steps.map((step, index) => (
+          {technique.steps.map((step: string, index: number) => (
             <div key={index} className="flex items-start gap-3.5 group">
               {/* Circulo numerado indicador de orden */}
               <div className="flex-shrink-0 w-7 h-7 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/40 flex items-center justify-center text-xs font-bold shadow-xs">
@@ -116,7 +116,7 @@ export function TechniqueDetailView({
             Demostración en Video
           </h2>
           <div className="space-y-3">
-            {technique.mediaLinks.map((media) => (
+            {technique.mediaLinks.map((media: MediaLink) => (
               <MediaEmbed key={media.id} mediaLink={media} />
             ))}
           </div>
