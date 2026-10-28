@@ -6,6 +6,8 @@ import type { PositionWithRelations, CategoryWithPositions, Technique } from "@/
 import { BjjIconPlaceholder } from "@/components/common/BjjIconPlaceholder";
 import { uploadPositionImageAction } from "@/app/actions";
 import { compressImage, safeImageSrc, isDataOrBlob } from "@/lib/imageCompression";
+import { useVoiceRecognition } from "@/hooks/useVoiceRecognition";
+import { VoiceMicButton, VoiceListeningBadge } from "@/components/common/VoiceMicButton";
 
 interface PositionsViewProps {
   positions: PositionWithRelations[];
@@ -241,12 +243,22 @@ export function PositionsView({
   const [isAddMediaModalOpen, setIsAddMediaModalOpen] = useState(false);
   const [mediaUrlInput, setMediaUrlInput] = useState("");
 
+  // Hook nativo de reconocimiento de voz para pasos y notas
+  const {
+    isSupported: isVoiceSupported,
+    isListening: isVoiceListening,
+    activeId: activeVoiceId,
+    startListening,
+    stopListening,
+  } = useVoiceRecognition();
+
   // Reiniciar técnica seleccionada y estado de edición al cambiar la posición activa
   useEffect(() => {
+    stopListening();
     setSelectedTechniqueId(null);
     setIsTechMenuOpen(false);
     setIsEditingTechnique(false);
-  }, [selectedPositionId]);
+  }, [selectedPositionId, stopListening]);
 
   // Obtiene el ID de 'Posiciones' por defecto, o el primero disponible
   const defaultCategoryId =
@@ -292,6 +304,7 @@ export function PositionsView({
 
       // Inicia el modo de edición completo de la técnica
       const handleStartEditingTechnique = () => {
+        stopListening();
         setEditingTitle(activeTechnique.title);
         setEditingNotes(activeTechnique.notes || "");
         setEditingImageUrl(activeTechnique.imageUrl || "");
@@ -306,6 +319,7 @@ export function PositionsView({
 
       // Guarda los cambios de la técnica (nombre, imagen, notas y pasos)
       const handleSaveTechnique = async () => {
+        stopListening();
         if (!editingTitle.trim()) return;
         setIsSavingTechnique(true);
         try {
@@ -331,6 +345,19 @@ export function PositionsView({
         } finally {
           setIsSavingTechnique(false);
         }
+      };
+
+      // Añade un nuevo paso en la edición y activa la escucha de voz de inmediato
+      const handleDictateNewStep = () => {
+        const nextIdx = editingStepsList.length;
+        setEditingStepsList((prev) => [...prev, ""]);
+        startListening(`edit-step-${nextIdx}`, "", (spokenText) => {
+          setEditingStepsList((prev) => {
+            const next = [...prev];
+            next[nextIdx] = spokenText;
+            return next;
+          });
+        });
       };
 
       // Maneja subida de imagen de la técnica con compresión máxima
@@ -465,11 +492,27 @@ export function PositionsView({
               )}
             </div>
 
-            {/* 3. Notas de la técnica */}
+            {/* 3. Notas de la técnica con dictado por voz */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
-                Notas y detalles clave
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
+                  Notas y detalles clave
+                </label>
+                <VoiceMicButton
+                  isListening={isVoiceListening && activeVoiceId === "edit-notes"}
+                  isSupported={isVoiceSupported}
+                  onClick={() => {
+                    if (isVoiceListening && activeVoiceId === "edit-notes") {
+                      stopListening();
+                    } else {
+                      startListening("edit-notes", editingNotes, (spoken) => {
+                        setEditingNotes(spoken);
+                      });
+                    }
+                  }}
+                  title="Dictar notas por voz"
+                />
+              </div>
               <textarea
                 rows={3}
                 value={editingNotes}
@@ -479,23 +522,44 @@ export function PositionsView({
               />
             </div>
 
-            {/* 4. Pasos de ejecución con inputs individuales */}
+            {/* 4. Pasos de ejecución con inputs individuales y dictado por voz */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
                   Pasos de ejecución
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setEditingStepsList([...editingStepsList, ""])}
-                  className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline flex items-center gap-1"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                  </svg>
-                  <span>Añadir paso</span>
-                </button>
+                <div className="flex items-center gap-2.5">
+                  {isVoiceSupported && (
+                    <button
+                      type="button"
+                      onClick={handleDictateNewStep}
+                      className="text-xs font-semibold text-rose-500 dark:text-rose-400 hover:underline flex items-center gap-1 active:scale-95 transition-transform"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                      </svg>
+                      <span>Dictar paso</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setEditingStepsList([...editingStepsList, ""])}
+                    className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline flex items-center gap-1"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>Añadir paso</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Indicador de escucha activo */}
+              <VoiceListeningBadge
+                isListening={isVoiceListening && typeof activeVoiceId === "string" && activeVoiceId.startsWith("edit-")}
+                onStop={stopListening}
+                label="🎙️ Escuchando... Di el paso con tu voz"
+              />
 
               <div className="space-y-2">
                 {editingStepsList.map((step, idx) => (
@@ -517,6 +581,24 @@ export function PositionsView({
                       placeholder={`Paso ${idx + 1}: Describe el movimiento...`}
                       className="flex-1 px-2 py-1 bg-transparent text-xs sm:text-sm font-medium text-black dark:text-white placeholder:text-zinc-400 focus:outline-none"
                     />
+                    <VoiceMicButton
+                      isListening={isVoiceListening && activeVoiceId === `edit-step-${idx}`}
+                      isSupported={isVoiceSupported}
+                      onClick={() => {
+                        if (isVoiceListening && activeVoiceId === `edit-step-${idx}`) {
+                          stopListening();
+                        } else {
+                          startListening(`edit-step-${idx}`, step, (spokenText) => {
+                            setEditingStepsList((prev) => {
+                              const next = [...prev];
+                              next[idx] = spokenText;
+                              return next;
+                            });
+                          });
+                        }
+                      }}
+                      title={`Dictar paso ${idx + 1} por voz`}
+                    />
                     {editingStepsList.length > 1 && (
                       <button
                         type="button"
@@ -533,16 +615,30 @@ export function PositionsView({
                 ))}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setEditingStepsList([...editingStepsList, ""])}
-                className="w-full py-2.5 rounded-xl border border-dashed border-[#007AFF]/40 dark:border-[#0A84FF]/40 text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF]/5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                <span>Añadir paso</span>
-              </button>
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setEditingStepsList([...editingStepsList, ""])}
+                  className="py-2.5 rounded-xl border border-dashed border-[#007AFF]/40 dark:border-[#0A84FF]/40 text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF]/5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Añadir paso</span>
+                </button>
+                {isVoiceSupported && (
+                  <button
+                    type="button"
+                    onClick={handleDictateNewStep}
+                    className="py-2.5 rounded-xl border border-dashed border-rose-400/50 dark:border-rose-500/40 text-rose-500 dark:text-rose-400 hover:bg-rose-500/5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                    <span>Dictar nuevo paso</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         );

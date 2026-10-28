@@ -19,6 +19,8 @@ import { PositionsView } from "@/components/positions/PositionsView";
 import { AllTechniquesLibraryView } from "@/components/library/AllTechniquesLibraryView";
 import { BottomTabBar } from "@/components/navigation/BottomTabBar";
 import { compressImage, safeImageSrc, isDataOrBlob } from "@/lib/imageCompression";
+import { useVoiceRecognition } from "@/hooks/useVoiceRecognition";
+import { VoiceMicButton, VoiceListeningBadge } from "@/components/common/VoiceMicButton";
 
 interface MainAppContainerProps {
   initialPositions: PositionWithRelations[];
@@ -41,6 +43,15 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
   const [newTechImagePreview, setNewTechImagePreview] = useState<string | null>(null);
   const [isUploadingTechImage, setIsUploadingTechImage] = useState(false);
   const [newTechSteps, setNewTechSteps] = useState<string[]>(["", ""]);
+
+  // Dictado y captura de voz nativa Web Speech
+  const {
+    isSupported: isVoiceSupported,
+    isListening: isVoiceListening,
+    activeId: activeVoiceId,
+    startListening,
+    stopListening,
+  } = useVoiceRecognition();
 
   // Estados de modal para crear posicion
   const [isAddPosModalOpen, setIsAddPosModalOpen] = useState(false);
@@ -85,6 +96,7 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
 
   // Abre el modal de agregar movimiento
   const handleOpenAddTechModal = (positionId?: string) => {
+    stopListening();
     const defaultId = positionId || selectedPositionId || positions[0]?.id || "";
     setTargetPositionIdForTech(defaultId);
     setNewTechTitle("");
@@ -93,6 +105,19 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
     setNewTechImagePreview(null);
     setNewTechSteps(["", ""]);
     setIsAddTechModalOpen(true);
+  };
+
+  // Añade un nuevo paso en el modal y comienza a escuchar inmediatamente
+  const handleDictateNewStepModal = () => {
+    const nextIdx = newTechSteps.length;
+    setNewTechSteps((prev) => [...prev, ""]);
+    startListening(`modal-step-${nextIdx}`, "", (spokenText) => {
+      setNewTechSteps((prev) => {
+        const next = [...prev];
+        next[nextIdx] = spokenText;
+        return next;
+      });
+    });
   };
 
   // Maneja la subida de foto para una técnica en el modal de creación con compresión máxima
@@ -648,11 +673,27 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
                 )}
               </div>
 
-              {/* Notas de la tecnica */}
+              {/* Notas de la tecnica con dictado por voz */}
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                  Notas / Detalles clave (opcional)
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    Notas / Detalles clave (opcional)
+                  </label>
+                  <VoiceMicButton
+                    isListening={isVoiceListening && activeVoiceId === "modal-notes"}
+                    isSupported={isVoiceSupported}
+                    onClick={() => {
+                      if (isVoiceListening && activeVoiceId === "modal-notes") {
+                        stopListening();
+                      } else {
+                        startListening("modal-notes", newTechNotes, (spoken) => {
+                          setNewTechNotes(spoken);
+                        });
+                      }
+                    }}
+                    title="Dictar notas por voz"
+                  />
+                </div>
                 <textarea
                   rows={2}
                   value={newTechNotes}
@@ -662,23 +703,44 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
                 />
               </div>
 
-              {/* Pasos de ejecucion con inputs individuales */}
+              {/* Pasos de ejecucion con inputs individuales y dictado por voz */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                     Pasos de ejecución
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => setNewTechSteps([...newTechSteps, ""])}
-                    className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline flex items-center gap-1"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span>Añadir paso</span>
-                  </button>
+                  <div className="flex items-center gap-2.5">
+                    {isVoiceSupported && (
+                      <button
+                        type="button"
+                        onClick={handleDictateNewStepModal}
+                        className="text-xs font-semibold text-rose-500 dark:text-rose-400 hover:underline flex items-center gap-1 active:scale-95 transition-transform"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                        </svg>
+                        <span>Dictar paso</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setNewTechSteps([...newTechSteps, ""])}
+                      className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline flex items-center gap-1"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span>Añadir paso</span>
+                    </button>
+                  </div>
                 </div>
+
+                {/* Banner de audio en vivo */}
+                <VoiceListeningBadge
+                  isListening={isVoiceListening && typeof activeVoiceId === "string" && activeVoiceId.startsWith("modal-")}
+                  onStop={stopListening}
+                  label="🎙️ Escuchando... Di el paso con tu voz"
+                />
 
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                   {newTechSteps.map((step, idx) => (
@@ -696,6 +758,24 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
                         }}
                         placeholder={`Paso ${idx + 1}: Describe el movimiento...`}
                         className="flex-1 px-3 py-2 rounded-xl bg-[#f5f5f7] dark:bg-black border border-black/[0.08] dark:border-white/[0.08] text-xs text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                      />
+                      <VoiceMicButton
+                        isListening={isVoiceListening && activeVoiceId === `modal-step-${idx}`}
+                        isSupported={isVoiceSupported}
+                        onClick={() => {
+                          if (isVoiceListening && activeVoiceId === `modal-step-${idx}`) {
+                            stopListening();
+                          } else {
+                            startListening(`modal-step-${idx}`, step, (spokenText) => {
+                              setNewTechSteps((prev) => {
+                                const next = [...prev];
+                                next[idx] = spokenText;
+                                return next;
+                              });
+                            });
+                          }
+                        }}
+                        title={`Dictar paso ${idx + 1} por voz`}
                       />
                       {newTechSteps.length > 1 && (
                         <button
