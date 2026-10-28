@@ -8,6 +8,7 @@ import { uploadPositionImageAction } from "@/app/actions";
 import { compressImage, safeImageSrc, isDataOrBlob } from "@/lib/imageCompression";
 import { useVoiceRecognition } from "@/hooks/useVoiceRecognition";
 import { VoiceMicButton, VoiceListeningBadge } from "@/components/common/VoiceMicButton";
+import { AutoResizeTextarea } from "@/components/common/AutoResizeTextarea";
 
 interface PositionsViewProps {
   positions: PositionWithRelations[];
@@ -347,19 +348,6 @@ export function PositionsView({
         }
       };
 
-      // Añade un nuevo paso en la edición y activa la escucha de voz de inmediato
-      const handleDictateNewStep = () => {
-        const nextIdx = editingStepsList.length;
-        setEditingStepsList((prev) => [...prev, ""]);
-        startListening(`edit-step-${nextIdx}`, "", (spokenText) => {
-          setEditingStepsList((prev) => {
-            const next = [...prev];
-            next[nextIdx] = spokenText;
-            return next;
-          });
-        });
-      };
-
       // Maneja subida de imagen de la técnica con compresión máxima
       const handleTechPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const rawFile = e.target.files?.[0];
@@ -513,45 +501,31 @@ export function PositionsView({
                   title="Dictar notas por voz"
                 />
               </div>
-              <textarea
-                rows={3}
+              <AutoResizeTextarea
+                minRows={3}
                 value={editingNotes}
-                onChange={(e) => setEditingNotes(e.target.value)}
+                onChange={(val) => setEditingNotes(val)}
                 placeholder="Detalles sobre distribución de peso, advertencias, agarres..."
-                className="w-full p-3.5 rounded-2xl bg-white dark:bg-[#1c2732] border border-black/[0.1] dark:border-white/[0.12] text-xs sm:text-sm text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-[#007AFF] resize-none shadow-xs"
+                className="w-full p-3.5 rounded-2xl bg-white dark:bg-[#1c2732] border border-black/[0.1] dark:border-white/[0.12] text-xs sm:text-sm text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-[#007AFF] shadow-xs leading-relaxed"
               />
             </div>
 
-            {/* 4. Pasos de ejecución con inputs individuales y dictado por voz */}
-            <div className="space-y-2.5">
+            {/* 4. Pasos de ejecución con tarjetas individuales y auto-expansión */}
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
                   Pasos de ejecución
                 </label>
-                <div className="flex items-center gap-2.5">
-                  {isVoiceSupported && (
-                    <button
-                      type="button"
-                      onClick={handleDictateNewStep}
-                      className="text-xs font-semibold text-rose-500 dark:text-rose-400 hover:underline flex items-center gap-1 active:scale-95 transition-transform"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                      </svg>
-                      <span>Dictar paso</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setEditingStepsList([...editingStepsList, ""])}
-                    className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline flex items-center gap-1"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span>Añadir paso</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingStepsList([...editingStepsList, ""])}
+                  className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline flex items-center gap-1 active:scale-95 transition-transform"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Añadir paso</span>
+                </button>
               </div>
 
               {/* Indicador de escucha activo */}
@@ -561,83 +535,79 @@ export function PositionsView({
                 label="🎙️ Escuchando... Di el paso con tu voz"
               />
 
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {editingStepsList.map((step, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-white dark:bg-[#1c2732] border border-black/[0.08] dark:border-white/[0.1] shadow-xs"
+                    className="p-3 rounded-2xl bg-white dark:bg-[#1c2732] border border-black/[0.08] dark:border-white/[0.1] shadow-xs space-y-2 transition-all focus-within:ring-2 focus-within:ring-[#007AFF]/40 focus-within:border-[#007AFF]"
                   >
-                    <span className="w-7 h-7 rounded-full bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF] text-xs font-bold flex items-center justify-center shrink-0 select-none">
-                      {idx + 1}
-                    </span>
-                    <input
-                      type="text"
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#007AFF] dark:text-[#0A84FF]">
+                        <span className="w-5 h-5 rounded-full bg-[#007AFF]/15 flex items-center justify-center text-[10px]">
+                          {idx + 1}
+                        </span>
+                        <span>Paso {idx + 1}</span>
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <VoiceMicButton
+                          isListening={isVoiceListening && activeVoiceId === `edit-step-${idx}`}
+                          isSupported={isVoiceSupported}
+                          onClick={() => {
+                            if (isVoiceListening && activeVoiceId === `edit-step-${idx}`) {
+                              stopListening();
+                            } else {
+                              startListening(`edit-step-${idx}`, step, (spokenText) => {
+                                setEditingStepsList((prev) => {
+                                  const next = [...prev];
+                                  next[idx] = spokenText;
+                                  return next;
+                                });
+                              });
+                            }
+                          }}
+                          title={`Dictar paso ${idx + 1} por voz`}
+                        />
+                        {editingStepsList.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setEditingStepsList(editingStepsList.filter((_, i) => i !== idx))}
+                            className="w-7 h-7 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center shrink-0 transition-colors"
+                            title="Eliminar este paso"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <AutoResizeTextarea
                       value={step}
-                      onChange={(e) => {
+                      onChange={(newVal) => {
                         const updated = [...editingStepsList];
-                        updated[idx] = e.target.value;
+                        updated[idx] = newVal;
                         setEditingStepsList(updated);
                       }}
-                      placeholder={`Paso ${idx + 1}: Describe el movimiento...`}
-                      className="flex-1 px-2 py-1 bg-transparent text-xs sm:text-sm font-medium text-black dark:text-white placeholder:text-zinc-400 focus:outline-none"
+                      placeholder={`Describe el paso ${idx + 1}...`}
+                      minRows={2}
+                      className="bg-transparent border-none text-xs sm:text-sm font-medium text-black dark:text-white placeholder:text-zinc-400 p-0 focus:outline-none focus:ring-0 leading-relaxed"
                     />
-                    <VoiceMicButton
-                      isListening={isVoiceListening && activeVoiceId === `edit-step-${idx}`}
-                      isSupported={isVoiceSupported}
-                      onClick={() => {
-                        if (isVoiceListening && activeVoiceId === `edit-step-${idx}`) {
-                          stopListening();
-                        } else {
-                          startListening(`edit-step-${idx}`, step, (spokenText) => {
-                            setEditingStepsList((prev) => {
-                              const next = [...prev];
-                              next[idx] = spokenText;
-                              return next;
-                            });
-                          });
-                        }
-                      }}
-                      title={`Dictar paso ${idx + 1} por voz`}
-                    />
-                    {editingStepsList.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setEditingStepsList(editingStepsList.filter((_, i) => i !== idx))}
-                        className="w-8 h-8 rounded-xl text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center shrink-0 transition-colors"
-                        title="Eliminar este paso"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    )}
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-1">
+              <div className="pt-1">
                 <button
                   type="button"
                   onClick={() => setEditingStepsList([...editingStepsList, ""])}
-                  className="py-2.5 rounded-xl border border-dashed border-[#007AFF]/40 dark:border-[#0A84FF]/40 text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF]/5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                  className="w-full py-2.5 rounded-xl border border-dashed border-[#007AFF]/40 dark:border-[#0A84FF]/40 text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF]/5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors active:scale-98"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
                   <span>Añadir paso</span>
                 </button>
-                {isVoiceSupported && (
-                  <button
-                    type="button"
-                    onClick={handleDictateNewStep}
-                    className="py-2.5 rounded-xl border border-dashed border-rose-400/50 dark:border-rose-500/40 text-rose-500 dark:text-rose-400 hover:bg-rose-500/5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                    </svg>
-                    <span>Dictar nuevo paso</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>
