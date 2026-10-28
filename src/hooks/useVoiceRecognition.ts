@@ -12,52 +12,58 @@ interface SpeechRecognitionEvent extends Event {
   results: SpeechRecognitionResultList;
 }
 
+// Detecta iOS/Safari una sola vez (no dentro del hook para evitar recálculos)
+function detectIOS(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  );
+}
+
 export function useVoiceRecognition() {
   const [isSupported, setIsSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [activeId, setActiveId] = useState<string | number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Referencias mutables para evitar cierres obsoletos en callbacks de audio
   const recognitionRef = useRef<any>(null);
   const onResultCallbackRef = useRef<((text: string, isFinal: boolean) => void) | null>(null);
   const baseTextRef = useRef<string>("");
 
+  // sessionIdRef: identifica cada sesión de forma única para evitar race conditions
+  // NO usamos la instancia del objeto como guard (causa el bug de resultados bloqueados)
+  const sessionIdRef = useRef<number>(0);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition ||
-        (window as any).webkitSpeechRecognition;
-      setIsSupported(Boolean(SpeechRecognition));
+      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      setIsSupported(Boolean(SR));
     }
   }, []);
 
-  // Limpieza total y desvinculación de eventos de la instancia actual
-  const cleanupRecognition = useCallback(() => {
+  // Limpia la instancia anterior sin tocar los event listeners (para no bloquear resultados en vuelo)
+  const destroyRecognition = useCallback(() => {
     if (recognitionRef.current) {
-      const rec = recognitionRef.current;
+      const old = recognitionRef.current;
       recognitionRef.current = null;
-      // Desvincular eventos para evitar que callbacks asíncronos pisen nuevo estado
-      rec.onstart = null;
-      rec.onresult = null;
-      rec.onerror = null;
-      rec.onend = null;
-      try {
-        rec.abort();
-      } catch {
-        // Ignorar si ya estaba cerrado
-      }
+      // Desvincular eventos ANTES de abortar para que el onend viejo no ejecute nada
+      old.onstart = null;
+      old.onresult = null;
+      old.onerror = null;
+      old.onend = null;
+      try { old.abort(); } catch { /* ya cerrado */ }
     }
   }, []);
 
-  // Detiene el reconocimiento actual de forma limpia
   const stopListening = useCallback(() => {
-    cleanupRecognition();
+    // Invalidar la sesión activa incrementando el contador
+    sessionIdRef.current += 1;
+    destroyRecognition();
     setIsListening(false);
     setActiveId(null);
-  }, [cleanupRecognition]);
+  }, [destroyRecognition]);
 
-  // Inicia la captura de voz para un campo de paso específico
   const startListening = useCallback(
     (
       id: string | number,
@@ -75,14 +81,18 @@ export function useVoiceRecognition() {
         return;
       }
 
-      // Si se toca el mismo botón que ya está escuchando, se detiene
-      if (recognitionRef.current && activeId === id) {
+      // Si se toca el mismo botón que ya escucha, detener
+      if (isListening && activeId === id) {
         stopListening();
         return;
       }
 
-      // Si había otra sesión activa o previa, limpiarla por completo
-      cleanupRecognition();
+      // Destruir cualquier sesión previa
+      destroyRecognition();
+
+      // Incrementar el sessionId; todos los callbacks de esta sesión capturan ESTE valor
+      sessionIdRef.current += 1;
+      const mySessionId = sessionIdRef.current;
 
       setErrorMessage(null);
       baseTextRef.current = initialText.trim();
@@ -93,122 +103,123 @@ export function useVoiceRecognition() {
         const recognition = new SpeechRecognition();
         recognitionRef.current = recognition;
 
-        // Detección de WebKit / iOS para evitar bloqueo del audio session
-        const isIOS =
-          typeof navigator !== "undefined" &&
-          (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
-            (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+        const isIOS = detectIOS();
 
-        // En iOS Safari continuous=true bloquea el hardware; continuous=false es la forma nativa
+        // iOS Safari: continuous=true bloquea el audio session tras la primera locución
         recognition.continuous = !isIOS;
         recognition.interimResults = true;
         recognition.maxAlternatives = 1;
 
-        // Dialecto en español basado en navegador o es-ES por defecto
         const userLang = navigator.language || "es-ES";
         recognition.lang = userLang.startsWith("es") ? userLang : "es-ES";
 
         recognition.onstart = () => {
-          if (recognitionRef.current !== recognition) return;
+          // Ignorar si la sesión ya fue reemplazada
+          if (sessionIdRef.current !== mySessionId) return;
           setIsListening(true);
         };
 
         recognition.onresult = (event: SpeechRecognitionEvent) => {
-          if (recognitionRef.current !== recognition) return;
+          // Guard por sessionId, NO por instancia (la instancia puede ser null en onend antes de onresult)
+          if (sessionIdRef.current !== mySessionId) return;
 
-          let sessionTranscript = "";
+          let transcript = "";
           let hasFinal = false;
 
           for (let i = 0; i < event.results.length; i++) {
-            const item = event.results[i];
-            sessionTranscript += item[0].transcript;
-            if (item.isFinal) {
-              hasFinal = true;
-            }
+            transcript += event.results[i][0].transcript;
+            if (event.results[i].isFinal) hasFinal = true;
           }
 
-          const trimmed = sessionTranscript.trim();
+          const trimmed = transcript.trim();
           if (!trimmed) return;
 
-          let combinedText = "";
+          let output: string;
           if (baseTextRef.current) {
-            const endsWithPunctuation = /[.!?]\s*$/.test(baseTextRef.current);
-            const spokenFormatted = endsWithPunctuation
-              ? trimmed.charAt(0).toUpperCase() + trimmed.slice(1)
-              : trimmed.charAt(0).toLowerCase() + trimmed.slice(1);
-            combinedText = `${baseTextRef.current} ${spokenFormatted}`;
+            // Combinar texto previo con lo dictado
+            output = `${baseTextRef.current} ${trimmed}`;
           } else {
-            combinedText = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+            // Primera letra en mayúscula si es el inicio del paso
+            output = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
           }
 
           if (onResultCallbackRef.current) {
-            onResultCallbackRef.current(combinedText, hasFinal);
+            onResultCallbackRef.current(output, hasFinal);
           }
         };
 
         recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-          if (recognitionRef.current !== recognition) return;
-          console.warn("[VoiceRecognition] Error de audio:", event.error);
+          if (sessionIdRef.current !== mySessionId) return;
+          console.warn("[VoiceRecognition] Error:", event.error);
 
           if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-            setErrorMessage("Permiso de micrófono denegado. Permite el acceso en el navegador.");
+            setErrorMessage("Permiso de micrófono denegado. Habilítalo en el navegador.");
           } else if (event.error === "no-speech") {
-            // Silencio detectado, sin error invasivo
+            // Silencio detectado — no mostrar error al usuario
           } else if (event.error !== "aborted") {
-            setErrorMessage(`Aviso de voz: ${event.error}`);
+            setErrorMessage(`Error de voz: ${event.error}`);
           }
 
-          cleanupRecognition();
+          // Invalidar la sesión antes de limpiar para que onend posterior no haga nada
+          sessionIdRef.current += 1;
+          destroyRecognition();
           setIsListening(false);
           setActiveId(null);
         };
 
         recognition.onend = () => {
-          if (recognitionRef.current !== recognition) return;
-          cleanupRecognition();
+          // Si ya fue invalidada (por stopListening u onerror), ignorar
+          if (sessionIdRef.current !== mySessionId) return;
+          // Sesión terminó naturalmente
+          sessionIdRef.current += 1;
+          destroyRecognition();
           setIsListening(false);
           setActiveId(null);
         };
 
-        // En WebKit/Safari, iniciar de forma segura con fallback para InvalidStateError
+        // Iniciar con fallback para InvalidStateError en Safari/iOS
         try {
           recognition.start();
         } catch (startErr: any) {
           if (startErr.name === "InvalidStateError") {
-            // El hardware de audio anterior aún estaba liberando; reintentar tras micro-espera
+            // Audio session aún liberándose; reintentar en 150ms
             setTimeout(() => {
+              if (sessionIdRef.current !== mySessionId) return;
               try {
-                if (recognitionRef.current === recognition) {
-                  recognition.start();
-                }
+                recognition.start();
               } catch (retryErr) {
                 console.error("[VoiceRecognition] Reintento fallido:", retryErr);
-                cleanupRecognition();
-                setIsListening(false);
-                setActiveId(null);
+                if (sessionIdRef.current === mySessionId) {
+                  sessionIdRef.current += 1;
+                  destroyRecognition();
+                  setIsListening(false);
+                  setActiveId(null);
+                }
               }
-            }, 100);
+            }, 150);
           } else {
             throw startErr;
           }
         }
       } catch (err) {
-        console.error("[VoiceRecognition] Error al activar micrófono:", err);
+        console.error("[VoiceRecognition] No se pudo iniciar:", err);
         setErrorMessage("No se pudo activar el micrófono.");
-        cleanupRecognition();
+        sessionIdRef.current += 1;
+        destroyRecognition();
         setIsListening(false);
         setActiveId(null);
       }
     },
-    [activeId, cleanupRecognition, stopListening]
+    [activeId, isListening, destroyRecognition, stopListening]
   );
 
-  // Limpieza al desmontar
+  // Limpieza al desmontar el componente
   useEffect(() => {
     return () => {
-      cleanupRecognition();
+      sessionIdRef.current += 1;
+      destroyRecognition();
     };
-  }, [cleanupRecognition]);
+  }, [destroyRecognition]);
 
   return {
     isSupported,
