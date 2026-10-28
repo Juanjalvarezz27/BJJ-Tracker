@@ -47,6 +47,8 @@ model Technique {
   positionId         String
   position           Position           @relation(fields: [positionId], references: [id], onDelete: Cascade)
   title              String
+  notes              String?
+  imageUrl           String?
   steps              String[]
   sortOrder          Int                @default(0)
   mediaLinks         MediaLink[]

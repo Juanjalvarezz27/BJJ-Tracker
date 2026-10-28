@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from "react";
 import Image from "next/image";
 import type { PositionWithRelations, Technique } from "@/types/bjj";
+import { safeImageSrc, isDataOrBlob } from "@/lib/imageCompression";
 
 interface AllTechniquesLibraryViewProps {
   positions: PositionWithRelations[];
@@ -11,11 +12,13 @@ interface AllTechniquesLibraryViewProps {
   onSelectPosition: (positionId: string) => void;
 }
 
-// Obtiene la imagen adecuada para la técnica según su título o posición padre
+// Obtiene la imagen adecuada para la técnica según su título, imagen propia o posición padre
 function getTechniqueDisplayImage(
   techTitle: string,
-  positionImageUrl?: string | null
+  positionImageUrl?: string | null,
+  techniqueImageUrl?: string | null
 ): string | null {
+  if (techniqueImageUrl) return techniqueImageUrl;
   const lower = techTitle.toLowerCase();
   if (lower.includes("brazo") || lower.includes("armbar")) {
     return "/assets/armbar_technique.jpg";
@@ -107,12 +110,12 @@ export function AllTechniquesLibraryView({
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-6 space-y-6 pb-safe-nav">
       {/* Cabecera del módulo Mis Técnicas */}
-      <header className="flex items-center justify-between border-b border-black/[0.08] dark:border-white/[0.08] pb-4">
-        <div>
+      <header className="flex items-center justify-between gap-3.5 sm:gap-4 border-b border-black/[0.08] dark:border-white/[0.08] pb-4">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight text-black dark:text-white">
             Mis Técnicas
           </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
             Biblioteca de movimientos ordenados por posición
           </p>
         </div>
@@ -120,7 +123,7 @@ export function AllTechniquesLibraryView({
         <button
           type="button"
           onClick={() => onAddTechniqueClick(filterPositionId !== "all" ? filterPositionId : undefined)}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#007AFF] dark:bg-[#0A84FF] text-white text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm min-h-[36px]"
+          className="shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#007AFF] dark:bg-[#0A84FF] text-white text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm min-h-[36px]"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -251,7 +254,8 @@ export function AllTechniquesLibraryView({
             {filteredTechniques.map((tech) => {
               const displayImage = getTechniqueDisplayImage(
                 tech.title,
-                tech.positionImageUrl
+                tech.positionImageUrl,
+                tech.imageUrl
               );
 
               return (
@@ -265,9 +269,10 @@ export function AllTechniquesLibraryView({
                     <div className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-[#eaf2f7] dark:bg-[#152331] border border-black/[0.06] dark:border-white/[0.08] flex-shrink-0 flex items-center justify-center">
                       {displayImage ? (
                         <Image
-                          src={encodeURI(displayImage)}
+                          src={safeImageSrc(displayImage)}
                           alt={tech.title}
                           fill
+                          unoptimized={isDataOrBlob(displayImage)}
                           sizes="(max-width: 640px) 56px, 64px"
                           className="object-cover transition-transform duration-300 group-hover/card:scale-105"
                         />
@@ -353,14 +358,16 @@ export function AllTechniquesLibraryView({
               {(() => {
                 const img = getTechniqueDisplayImage(
                   selectedDetailTech.title,
-                  selectedDetailTech.positionImageUrl
+                  selectedDetailTech.positionImageUrl,
+                  selectedDetailTech.imageUrl
                 );
                 return img ? (
                   <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden bg-[#eaf2f7] dark:bg-[#152331] border border-black/[0.08] dark:border-white/[0.1] shadow-xs flex-shrink-0">
                     <Image
-                      src={encodeURI(img)}
+                      src={safeImageSrc(img)}
                       alt={selectedDetailTech.title}
                       fill
+                      unoptimized={isDataOrBlob(img)}
                       sizes="(max-width: 640px) 112px, 128px"
                       className="object-cover"
                     />
@@ -386,6 +393,18 @@ export function AllTechniquesLibraryView({
                 </div>
               </div>
             </div>
+
+            {/* Notas de la técnica si existen */}
+            {selectedDetailTech.notes && (
+              <div className="space-y-1.5 p-3.5 rounded-2xl bg-[#f5f5f7] dark:bg-black/40 border border-black/[0.04] dark:border-white/[0.06]">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                  Notas de ejecución
+                </h4>
+                <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed font-normal">
+                  {selectedDetailTech.notes}
+                </p>
+              </div>
+            )}
 
             {/* Lista detallada de pasos */}
             <div className="space-y-3 pt-2 border-t border-black/[0.06] dark:border-white/[0.08]">

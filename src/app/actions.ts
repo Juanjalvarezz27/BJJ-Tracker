@@ -392,6 +392,8 @@ export async function createTechniqueAction(data: {
   positionId: string;
   title: string;
   steps: string[];
+  notes?: string | null;
+  imageUrl?: string | null;
 }): Promise<{ success: boolean; technique?: Technique; error?: string }> {
   try {
     const count = await prisma.technique.count({
@@ -402,7 +404,9 @@ export async function createTechniqueAction(data: {
       data: {
         positionId: data.positionId,
         title: data.title.trim(),
-        steps: data.steps.filter((s) => s.trim().length > 0),
+        steps: data.steps.map((s) => s.trim()).filter((s) => s.length > 0),
+        notes: data.notes?.trim() || null,
+        imageUrl: data.imageUrl || null,
         sortOrder: count + 1,
       },
     });
@@ -416,18 +420,22 @@ export async function createTechniqueAction(data: {
   }
 }
 
-// Actualiza los datos de una técnica existente (título y pasos de ejecución)
+// Actualiza los datos de una técnica existente (título, pasos, notas e imagen)
 export async function updateTechniqueAction(data: {
   id: string;
   title?: string;
-  steps: string[];
+  steps?: string[];
+  notes?: string | null;
+  imageUrl?: string | null;
 }): Promise<{ success: boolean; technique?: Technique; error?: string }> {
   try {
     const updated = await prisma.technique.update({
       where: { id: data.id },
       data: {
         title: data.title !== undefined ? data.title.trim() : undefined,
-        steps: data.steps.map((s) => s.trim()).filter((s) => s.length > 0),
+        steps: data.steps !== undefined ? data.steps.map((s) => s.trim()).filter((s) => s.length > 0) : undefined,
+        notes: data.notes !== undefined ? (data.notes?.trim() || null) : undefined,
+        imageUrl: data.imageUrl !== undefined ? data.imageUrl : undefined,
       },
     });
 

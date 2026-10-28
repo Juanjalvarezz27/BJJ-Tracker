@@ -4,6 +4,7 @@ import React from "react";
 import Image from "next/image";
 import type { CategoryWithPositions, Position } from "@/types/bjj";
 import { BjjIconPlaceholder } from "@/components/common/BjjIconPlaceholder";
+import { safeImageSrc, isDataOrBlob } from "@/lib/imageCompression";
 
 interface LibraryGridViewProps {
   categories: CategoryWithPositions[];
@@ -96,10 +97,11 @@ export function LibraryGridView({
                   >
                     {position.imageUrl ? (
                       <Image
-                        src={encodeURI(position.imageUrl)}
+                        src={safeImageSrc(position.imageUrl)}
                         alt={position.title}
                         width={180}
                         height={180}
+                        unoptimized={isDataOrBlob(position.imageUrl)}
                         style={{ borderRadius: "12px" }}
                         className="w-full h-full object-contain rounded-xl"
                       />

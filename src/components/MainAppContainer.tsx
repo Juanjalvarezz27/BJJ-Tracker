@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useTransition, useMemo } from "react";
+import Image from "next/image";
 import type { PositionWithRelations, Technique, AppTab, CategoryWithPositions } from "@/types/bjj";
 import {
   createTechniqueAction,
@@ -17,6 +18,7 @@ import {
 import { PositionsView } from "@/components/positions/PositionsView";
 import { AllTechniquesLibraryView } from "@/components/library/AllTechniquesLibraryView";
 import { BottomTabBar } from "@/components/navigation/BottomTabBar";
+import { compressImage, safeImageSrc, isDataOrBlob } from "@/lib/imageCompression";
 
 interface MainAppContainerProps {
   initialPositions: PositionWithRelations[];
@@ -34,7 +36,11 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
   const [isAddTechModalOpen, setIsAddTechModalOpen] = useState(false);
   const [targetPositionIdForTech, setTargetPositionIdForTech] = useState<string>("");
   const [newTechTitle, setNewTechTitle] = useState("");
-  const [newTechStepsText, setNewTechStepsText] = useState("");
+  const [newTechNotes, setNewTechNotes] = useState("");
+  const [newTechImageUrl, setNewTechImageUrl] = useState("");
+  const [newTechImagePreview, setNewTechImagePreview] = useState<string | null>(null);
+  const [isUploadingTechImage, setIsUploadingTechImage] = useState(false);
+  const [newTechSteps, setNewTechSteps] = useState<string[]>(["", ""]);
 
   // Estados de modal para crear posicion
   const [isAddPosModalOpen, setIsAddPosModalOpen] = useState(false);
@@ -82,8 +88,35 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
     const defaultId = positionId || selectedPositionId || positions[0]?.id || "";
     setTargetPositionIdForTech(defaultId);
     setNewTechTitle("");
-    setNewTechStepsText("");
+    setNewTechNotes("");
+    setNewTechImageUrl("");
+    setNewTechImagePreview(null);
+    setNewTechSteps(["", ""]);
     setIsAddTechModalOpen(true);
+  };
+
+  // Maneja la subida de foto para una técnica en el modal de creación con compresión máxima
+  const handleTechImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
+
+    setIsUploadingTechImage(true);
+
+    try {
+      // Comprime en el navegador para reducir peso hasta un 95%
+      const { dataUrl } = await compressImage(rawFile, {
+        maxWidth: 960,
+        maxHeight: 960,
+        quality: 0.7,
+      });
+
+      setNewTechImagePreview(dataUrl);
+      setNewTechImageUrl(dataUrl);
+    } catch (err) {
+      console.error("Error al procesar foto de técnica:", err);
+    } finally {
+      setIsUploadingTechImage(false);
+    }
   };
 
   // Abre el modal para crear posición con categoría predefinida
@@ -101,41 +134,24 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
     setIsAddPosModalOpen(true);
   };
 
-  // Manejo de carga de archivo de imagen
+  // Manejo de carga de archivo de imagen con compresión para crear posición
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
-    const localPreview = URL.createObjectURL(file);
-    setImagePreview(localPreview);
     setIsUploadingImage(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await uploadPositionImageAction(formData);
+      const { dataUrl } = await compressImage(rawFile, {
+        maxWidth: 960,
+        maxHeight: 960,
+        quality: 0.7,
+      });
 
-      if (res.success && res.url) {
-        setNewPosImageUrl(res.url);
-      } else {
-        // Fallback a Base64 data URL
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (typeof reader.result === "string") {
-            setNewPosImageUrl(reader.result);
-          }
-        };
-        reader.readAsDataURL(file);
-      }
-    } catch {
-      // Fallback a Base64 data URL
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === "string") {
-          setNewPosImageUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      setImagePreview(dataUrl);
+      setNewPosImageUrl(dataUrl);
+    } catch (err) {
+      console.error("Error al procesar imagen de posición:", err);
     } finally {
       setIsUploadingImage(false);
     }
@@ -159,39 +175,24 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
     setIsEditPosModalOpen(true);
   };
 
-  // Manejo de carga de archivo de imagen para edicion
+  // Manejo de carga de archivo de imagen con compresión para editar posición
   const handleEditImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
-    const localPreview = URL.createObjectURL(file);
-    setEditImagePreview(localPreview);
     setIsUploadingEditImage(true);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await uploadPositionImageAction(formData);
+      const { dataUrl } = await compressImage(rawFile, {
+        maxWidth: 960,
+        maxHeight: 960,
+        quality: 0.7,
+      });
 
-      if (res.success && res.url) {
-        setEditPosImageUrl(res.url);
-      } else {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (typeof reader.result === "string") {
-            setEditPosImageUrl(reader.result);
-          }
-        };
-        reader.readAsDataURL(file);
-      }
-    } catch {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === "string") {
-          setEditPosImageUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+      setEditImagePreview(dataUrl);
+      setEditPosImageUrl(dataUrl);
+    } catch (err) {
+      console.error("Error al procesar imagen en edición:", err);
     } finally {
       setIsUploadingEditImage(false);
     }
@@ -229,20 +230,24 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
     setIsEditPosModalOpen(false);
 
     startTransition(async () => {
-      const res = await updatePositionAction({
-        id: editingPositionId,
-        title: editPosTitle.trim(),
-        subtitle: editPosSubtitle.trim() || null,
-        description: editPosDescription.trim() || null,
-        categoryId: editPosCategoryId || null,
-        imageUrl: editPosImageUrl.trim() || null,
-      });
+      try {
+        const res = await updatePositionAction({
+          id: editingPositionId,
+          title: editPosTitle.trim(),
+          subtitle: editPosSubtitle.trim() || null,
+          description: editPosDescription.trim() || null,
+          categoryId: editPosCategoryId || null,
+          imageUrl: editPosImageUrl.trim() || null,
+        });
 
-      if (res.success && res.position) {
-        const updated = res.position;
-        setPositions((prev) =>
-          prev.map((p) => (p.id === editingPositionId ? updated : p))
-        );
+        if (res.success && res.position) {
+          const updated = res.position;
+          setPositions((prev) =>
+            prev.map((p) => (p.id === editingPositionId ? updated : p))
+          );
+        }
+      } catch (err) {
+        console.error("Error al actualizar posición:", err);
       }
     });
   };
@@ -278,8 +283,7 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
     const position = positions.find((p) => p.id === targetPositionIdForTech);
     if (!newTechTitle.trim() || !position) return;
 
-    const steps = newTechStepsText
-      .split("\n")
+    const steps = newTechSteps
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
@@ -288,6 +292,8 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
       id: tempId,
       positionId: position.id,
       title: newTechTitle.trim(),
+      notes: newTechNotes.trim() || null,
+      imageUrl: newTechImageUrl.trim() || null,
       steps: steps.length > 0 ? steps : ["Asegurar control de base"],
       sortOrder: position.techniques.length + 1,
       createdAt: new Date(),
@@ -304,13 +310,18 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
 
     setIsAddTechModalOpen(false);
     setNewTechTitle("");
-    setNewTechStepsText("");
+    setNewTechNotes("");
+    setNewTechImageUrl("");
+    setNewTechImagePreview(null);
+    setNewTechSteps(["", ""]);
 
     startTransition(async () => {
       const res = await createTechniqueAction({
         positionId: position.id,
         title: optimisticTech.title,
         steps: optimisticTech.steps,
+        notes: optimisticTech.notes,
+        imageUrl: optimisticTech.imageUrl,
       });
 
       if (res.success && res.technique) {
@@ -334,14 +345,15 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
   // Guardar nueva posicion
   const handleCreatePosition = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPosTitle.trim()) return;
+    if (!newPosTitle.trim() || isUploadingImage) return;
 
     const tempId = `temp-pos-${Date.now()}`;
-    const parentCategory = categories.find((c) => c.id === newPosCategoryId) || null;
+    const effectiveCategoryId = newPosCategoryId || categories[0]?.id || null;
+    const parentCategory = categories.find((c) => c.id === effectiveCategoryId) || null;
 
     const optimisticPos: PositionWithRelations = {
       id: tempId,
-      categoryId: newPosCategoryId || null,
+      categoryId: effectiveCategoryId,
       category: parentCategory,
       title: newPosTitle.trim(),
       subtitle: newPosSubtitle.trim() || null,
@@ -367,20 +379,32 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
     setImagePreview(null);
 
     startTransition(async () => {
-      const res = await createPositionAction({
-        title: optimisticPos.title,
-        subtitle: optimisticPos.subtitle ?? undefined,
-        description: optimisticPos.description ?? undefined,
-        categoryId: newPosCategoryId || undefined,
-        imageUrl: optimisticPos.imageUrl ?? undefined,
-      });
+      try {
+        const res = await createPositionAction({
+          title: optimisticPos.title,
+          subtitle: optimisticPos.subtitle ?? undefined,
+          description: optimisticPos.description ?? undefined,
+          categoryId: effectiveCategoryId || undefined,
+          imageUrl: optimisticPos.imageUrl ?? undefined,
+        });
 
-      if (res.success && res.position) {
-        const savedPos = res.position;
-        setPositions((prev) =>
-          prev.map((p) => (p.id === tempId ? savedPos : p))
-        );
-        setSelectedPositionId(savedPos.id);
+        if (res.success && res.position) {
+          const savedPos = res.position;
+          setPositions((prev) =>
+            prev.map((p) => (p.id === tempId ? savedPos : p))
+          );
+          setSelectedPositionId(savedPos.id);
+        } else {
+          console.error("Error al crear posición en servidor:", res.error);
+          setPositions((prev) => prev.filter((p) => p.id !== tempId));
+          setSelectedPositionId(null);
+          alert(res.error || "No se pudo guardar la posición en el servidor.");
+        }
+      } catch (err) {
+        console.error("Error de red al crear posición:", err);
+        setPositions((prev) => prev.filter((p) => p.id !== tempId));
+        setSelectedPositionId(null);
+        alert("Error de conexión al guardar la posición. Intenta nuevamente.");
       }
     });
   };
@@ -442,7 +466,7 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
     });
   };
 
-  // Actualiza los pasos de una técnica existente
+  // Actualiza los pasos de una técnica existente (retrocompatibilidad)
   const handleUpdateTechniqueSteps = async (techId: string, steps: string[]) => {
     setPositions((prev) =>
       prev.map((pos) => ({
@@ -454,6 +478,24 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
     );
     startTransition(async () => {
       await updateTechniqueAction({ id: techId, steps });
+    });
+  };
+
+  // Actualiza los datos completos de una técnica existente (título, pasos, notas, imagen)
+  const handleUpdateTechnique = async (
+    techId: string,
+    data: { title?: string; steps?: string[]; notes?: string | null; imageUrl?: string | null }
+  ) => {
+    setPositions((prev) =>
+      prev.map((pos) => ({
+        ...pos,
+        techniques: pos.techniques.map((t) =>
+          t.id === techId ? { ...t, ...data } : t
+        ),
+      }))
+    );
+    startTransition(async () => {
+      await updateTechniqueAction({ id: techId, ...data });
     });
   };
 
@@ -478,6 +520,7 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
             onAddTechniqueClick={(posId) => handleOpenAddTechModal(posId)}
             onDeleteTechnique={handleDeleteTechnique}
             onUpdateTechniqueSteps={handleUpdateTechniqueSteps}
+            onUpdateTechnique={handleUpdateTechnique}
             onSaveNotes={handleSaveNotes}
             onEditPositionClick={(pos) => handleOpenEditPosModal(pos)}
             onDeletePositionClick={(posId) => handleRequestDeletePosition(posId)}
@@ -507,17 +550,17 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
         techniquesCount={totalTechniquesCount}
       />
 
-      {/* Modal Agregar Movimiento */}
+      {/* Modal Agregar Movimiento con inputs individuales de pasos y foto */}
       {isAddTechModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4 animate-in fade-in duration-150 safe-top">
-          <div className="w-full max-w-md bg-white dark:bg-[#1c1c1e] rounded-t-3xl sm:rounded-3xl border border-black/[0.08] dark:border-white/[0.08] p-5 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] sm:pb-5 shadow-2xl space-y-4">
+          <div className="w-full max-w-lg bg-white dark:bg-[#1c1c1e] rounded-t-[32px] sm:rounded-3xl border border-black/[0.08] dark:border-white/[0.08] p-5 pb-[calc(1.75rem+env(safe-area-inset-bottom,0px))] sm:pb-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-3">
               <div>
                 <h3 className="font-bold text-base text-black dark:text-white">
                   Nuevo Movimiento
                 </h3>
                 <p className="text-xs text-zinc-400">
-                  Registra una técnica o finalización
+                  Registra una técnica o finalización con pasos e imagen
                 </p>
               </div>
               <button
@@ -558,24 +601,117 @@ export function MainAppContainer({ initialPositions, initialCategories = [] }: M
                   required
                   value={newTechTitle}
                   onChange={(e) => setNewTechTitle(e.target.value)}
-                  placeholder="Ej: Barra de Brazo, Estrangulamiento Ezequiel, Triángulo..."
+                  placeholder="Ej: Barra de Brazo, Triángulo, Kimura, Kneecut..."
                   className="w-full px-3.5 py-2.5 rounded-xl bg-[#f5f5f7] dark:bg-black border border-black/[0.08] dark:border-white/[0.08] text-sm text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
                   autoFocus
                 />
               </div>
 
-              {/* Pasos de ejecucion */}
+              {/* Foto o imagen opcional de la tecnica */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                  Foto o imagen de referencia (opcional)
+                </label>
+                {newTechImagePreview || newTechImageUrl ? (
+                  <div className="relative w-full h-32 rounded-xl overflow-hidden bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08]">
+                    <Image
+                      src={safeImageSrc(newTechImagePreview || newTechImageUrl)}
+                      alt="Previsualización"
+                      fill
+                      unoptimized={isDataOrBlob(newTechImagePreview || newTechImageUrl)}
+                      className="object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewTechImagePreview(null);
+                        setNewTechImageUrl("");
+                      }}
+                      className="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-black/70 text-white text-[11px] font-semibold hover:bg-black transition-colors"
+                    >
+                      Quitar foto
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-24 border border-dashed border-black/[0.15] dark:border-white/[0.15] rounded-xl hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-pointer">
+                    <span className="text-xs font-medium text-[#007AFF] dark:text-[#0A84FF]">
+                      {isUploadingTechImage ? "Subiendo..." : "Toca para subir una foto"}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 mt-0.5">PNG, JPG o WebP</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleTechImageFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
+              {/* Notas de la tecnica */}
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                  Pasos de ejecución (uno por línea)
+                  Notas / Detalles clave (opcional)
                 </label>
                 <textarea
-                  rows={4}
-                  value={newTechStepsText}
-                  onChange={(e) => setNewTechStepsText(e.target.value)}
-                  placeholder="Paso 1: Aislar el brazo cruzado...&#10;Paso 2: Pasar pierna sobre la cabeza...&#10;Paso 3: Elevar cadera..."
+                  rows={2}
+                  value={newTechNotes}
+                  onChange={(e) => setNewTechNotes(e.target.value)}
+                  placeholder="Detalles sobre distribución de peso, advertencias, agarres..."
                   className="w-full p-3 rounded-xl bg-[#f5f5f7] dark:bg-black border border-black/[0.08] dark:border-white/[0.08] text-xs text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30 resize-none leading-relaxed"
                 />
+              </div>
+
+              {/* Pasos de ejecucion con inputs individuales */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    Pasos de ejecución
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setNewTechSteps([...newTechSteps, ""])}
+                    className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline flex items-center gap-1"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>Añadir paso</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {newTechSteps.map((step, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF] text-xs font-bold flex items-center justify-center shrink-0 select-none">
+                        {idx + 1}
+                      </span>
+                      <input
+                        type="text"
+                        value={step}
+                        onChange={(e) => {
+                          const next = [...newTechSteps];
+                          next[idx] = e.target.value;
+                          setNewTechSteps(next);
+                        }}
+                        placeholder={`Paso ${idx + 1}: Describe el movimiento...`}
+                        className="flex-1 px-3 py-2 rounded-xl bg-[#f5f5f7] dark:bg-black border border-black/[0.08] dark:border-white/[0.08] text-xs text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-[#007AFF]/30"
+                      />
+                      {newTechSteps.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setNewTechSteps(newTechSteps.filter((_, i) => i !== idx))}
+                          className="w-7 h-7 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 flex items-center justify-center shrink-0 transition-colors"
+                          title="Eliminar paso"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="flex gap-2 pt-1">

@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import type { PositionWithRelations, CategoryWithPositions, Technique } from "@/types/bjj";
 import { BjjIconPlaceholder } from "@/components/common/BjjIconPlaceholder";
+import { uploadPositionImageAction } from "@/app/actions";
+import { compressImage, safeImageSrc, isDataOrBlob } from "@/lib/imageCompression";
 
 interface PositionsViewProps {
   positions: PositionWithRelations[];
@@ -15,6 +17,10 @@ interface PositionsViewProps {
   onAddTechniqueClick: (positionId: string) => void;
   onDeleteTechnique: (techId: string) => void;
   onUpdateTechniqueSteps?: (techId: string, steps: string[]) => Promise<void> | void;
+  onUpdateTechnique?: (
+    techniqueId: string,
+    data: { title?: string; steps?: string[]; notes?: string | null; imageUrl?: string | null }
+  ) => Promise<void> | void;
   onSaveNotes: (positionId: string, notes: string) => void;
   onEditPositionClick: (position: PositionWithRelations) => void;
   onDeletePositionClick: (positionId: string) => void;
@@ -213,6 +219,7 @@ export function PositionsView({
   onAddTechniqueClick,
   onDeleteTechnique,
   onUpdateTechniqueSteps,
+  onUpdateTechnique,
   onSaveNotes,
   onEditPositionClick,
   onDeletePositionClick,
@@ -223,9 +230,14 @@ export function PositionsView({
   const [selectedTechniqueId, setSelectedTechniqueId] = useState<string | null>(null);
   const [isTechFav, setIsTechFav] = useState(false);
   const [isTechMenuOpen, setIsTechMenuOpen] = useState(false);
-  const [isEditingSteps, setIsEditingSteps] = useState(false);
+  const [isEditingTechnique, setIsEditingTechnique] = useState(false);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [editingNotes, setEditingNotes] = useState("");
+  const [editingImageUrl, setEditingImageUrl] = useState("");
   const [editingStepsList, setEditingStepsList] = useState<string[]>([]);
-  const [isSavingSteps, setIsSavingSteps] = useState(false);
+  const [isSavingTechnique, setIsSavingTechnique] = useState(false);
+  const [isUploadingTechPhoto, setIsUploadingTechPhoto] = useState(false);
+  const techFileInputRef = useRef<HTMLInputElement>(null);
   const [isAddMediaModalOpen, setIsAddMediaModalOpen] = useState(false);
   const [mediaUrlInput, setMediaUrlInput] = useState("");
 
@@ -233,7 +245,7 @@ export function PositionsView({
   useEffect(() => {
     setSelectedTechniqueId(null);
     setIsTechMenuOpen(false);
-    setIsEditingSteps(false);
+    setIsEditingTechnique(false);
   }, [selectedPositionId]);
 
   // Obtiene el ID de 'Posiciones' por defecto, o el primero disponible
@@ -252,7 +264,9 @@ export function PositionsView({
   if (activePosition && selectedPositionId && selectedTechniqueId) {
     const activeTechnique = activePosition.techniques.find((t) => t.id === selectedTechniqueId);
     if (activeTechnique) {
-      const techPhotoUrl = getTechniqueImage(activeTechnique.title);
+      const defaultPhotoUrl = getTechniqueImage(activeTechnique.title);
+      const displayPhotoUrl = activeTechnique.imageUrl || defaultPhotoUrl;
+
       const isArmbar =
         activeTechnique.title.toLowerCase().includes("brazo") ||
         activeTechnique.title.toLowerCase().includes("armbar");
@@ -276,119 +290,364 @@ export function PositionsView({
               "Aplicar presión gradual y controlada hasta la finalización.",
             ];
 
-      // Inicia el modo de edición de pasos
-      const handleStartEditingSteps = () => {
-        setEditingStepsList([...stepsToDisplay]);
-        setIsEditingSteps(true);
+      // Inicia el modo de edición completo de la técnica
+      const handleStartEditingTechnique = () => {
+        setEditingTitle(activeTechnique.title);
+        setEditingNotes(activeTechnique.notes || "");
+        setEditingImageUrl(activeTechnique.imageUrl || "");
+        setEditingStepsList(
+          activeTechnique.steps && activeTechnique.steps.length > 0
+            ? [...activeTechnique.steps]
+            : [...stepsToDisplay]
+        );
+        setIsEditingTechnique(true);
+        setIsTechMenuOpen(false);
       };
 
-      // Guarda los pasos editados
-      const handleSaveSteps = async () => {
-        setIsSavingSteps(true);
+      // Guarda los cambios de la técnica (nombre, imagen, notas y pasos)
+      const handleSaveTechnique = async () => {
+        if (!editingTitle.trim()) return;
+        setIsSavingTechnique(true);
         try {
           const cleanedSteps = editingStepsList
             .map((s) => s.trim())
             .filter((s) => s.length > 0);
-          if (onUpdateTechniqueSteps) {
-            await onUpdateTechniqueSteps(activeTechnique.id, cleanedSteps);
+
+          const payload = {
+            title: editingTitle.trim(),
+            steps: cleanedSteps.length > 0 ? cleanedSteps : ["Asegurar control de base"],
+            notes: editingNotes.trim() || null,
+            imageUrl: editingImageUrl.trim() || null,
+          };
+
+          if (onUpdateTechnique) {
+            await onUpdateTechnique(activeTechnique.id, payload);
+          } else if (onUpdateTechniqueSteps) {
+            await onUpdateTechniqueSteps(activeTechnique.id, payload.steps);
           }
-          setIsEditingSteps(false);
+          setIsEditingTechnique(false);
         } catch (error) {
-          console.error("Error al guardar pasos:", error);
+          console.error("Error al guardar técnica:", error);
         } finally {
-          setIsSavingSteps(false);
+          setIsSavingTechnique(false);
         }
       };
 
+      // Maneja subida de imagen de la técnica con compresión máxima
+      const handleTechPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const rawFile = e.target.files?.[0];
+        if (!rawFile) return;
+
+        setIsUploadingTechPhoto(true);
+
+        try {
+          // Comprime imagen en el cliente reduciendo su peso un 95%+
+          const { dataUrl } = await compressImage(rawFile, {
+            maxWidth: 960,
+            maxHeight: 960,
+            quality: 0.7,
+          });
+
+          setEditingImageUrl(dataUrl);
+        } catch (err) {
+          console.error("Error al procesar foto de técnica:", err);
+        } finally {
+          setIsUploadingTechPhoto(false);
+        }
+      };
+
+      // Modo Edición Completa de Técnica
+      if (isEditingTechnique) {
+        return (
+          <div className="w-full max-w-xl mx-auto px-4 py-5 space-y-6 pb-safe-nav animate-in fade-in duration-200">
+            {/* Input oculto para subir foto */}
+            <input
+              type="file"
+              ref={techFileInputRef}
+              onChange={handleTechPhotoUpload}
+              accept="image/*"
+              className="hidden"
+            />
+
+            {/* Barra superior en modo edición: Cancelar | Título | Guardar */}
+            <div className="flex items-center justify-between border-b border-black/[0.08] dark:border-white/[0.08] pb-4">
+              <button
+                type="button"
+                onClick={() => setIsEditingTechnique(false)}
+                disabled={isSavingTechnique}
+                className="px-4 py-1.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+              >
+                Cancelar
+              </button>
+
+              <span className="text-sm font-bold text-black dark:text-white">
+                Editar Técnica
+              </span>
+
+              <button
+                type="button"
+                onClick={handleSaveTechnique}
+                disabled={isSavingTechnique || !editingTitle.trim()}
+                className="px-4 py-1.5 rounded-full bg-[#007AFF] text-white text-xs font-semibold hover:bg-[#0062cc] active:scale-95 transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isSavingTechnique ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Guardando...</span>
+                  </>
+                ) : (
+                  <span>Guardar</span>
+                )}
+              </button>
+            </div>
+
+            {/* 1. Nombre de la técnica */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
+                Nombre del movimiento *
+              </label>
+              <input
+                type="text"
+                required
+                value={editingTitle}
+                onChange={(e) => setEditingTitle(e.target.value)}
+                placeholder="Nombre de la técnica..."
+                className="w-full px-4 py-3 rounded-2xl bg-white dark:bg-[#1c2732] border border-black/[0.1] dark:border-white/[0.12] text-sm sm:text-base font-bold text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-[#007AFF] shadow-xs"
+              />
+            </div>
+
+            {/* 2. Foto de la técnica */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
+                Foto o imagen de referencia
+              </label>
+              {editingImageUrl ? (
+                <div className="relative w-full aspect-[16/9] rounded-2xl overflow-hidden bg-black/5 dark:bg-white/5 border border-black/[0.08] dark:border-white/[0.08] shadow-xs">
+                  <Image
+                    src={safeImageSrc(editingImageUrl)}
+                    alt={editingTitle}
+                    fill
+                    unoptimized={isDataOrBlob(editingImageUrl)}
+                    sizes="(max-width: 768px) 100vw, 600px"
+                    className="object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/35 flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => techFileInputRef.current?.click()}
+                      disabled={isUploadingTechPhoto}
+                      className="px-3.5 py-1.5 rounded-full bg-white text-black text-xs font-semibold hover:bg-zinc-100 transition-colors shadow-md"
+                    >
+                      {isUploadingTechPhoto ? "Subiendo..." : "Cambiar foto"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingImageUrl("")}
+                      className="px-3.5 py-1.5 rounded-full bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors shadow-md"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => techFileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-black/[0.12] dark:border-white/[0.12] rounded-2xl hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
+                >
+                  <svg className="w-6 h-6 text-[#007AFF] mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF]">
+                    {isUploadingTechPhoto ? "Subiendo foto..." : "Toca para subir una foto"}
+                  </span>
+                  <span className="text-[10px] text-zinc-400 mt-0.5">PNG, JPG o WebP</span>
+                </div>
+              )}
+            </div>
+
+            {/* 3. Notas de la técnica */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
+                Notas y detalles clave
+              </label>
+              <textarea
+                rows={3}
+                value={editingNotes}
+                onChange={(e) => setEditingNotes(e.target.value)}
+                placeholder="Detalles sobre distribución de peso, advertencias, agarres..."
+                className="w-full p-3.5 rounded-2xl bg-white dark:bg-[#1c2732] border border-black/[0.1] dark:border-white/[0.12] text-xs sm:text-sm text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-[#007AFF] resize-none shadow-xs"
+              />
+            </div>
+
+            {/* 4. Pasos de ejecución con inputs individuales */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-zinc-700 dark:text-zinc-300 uppercase tracking-wider">
+                  Pasos de ejecución
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setEditingStepsList([...editingStepsList, ""])}
+                  className="text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline flex items-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Añadir paso</span>
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {editingStepsList.map((step, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-2.5 p-2.5 rounded-2xl bg-white dark:bg-[#1c2732] border border-black/[0.08] dark:border-white/[0.1] shadow-xs"
+                  >
+                    <span className="w-7 h-7 rounded-full bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF] text-xs font-bold flex items-center justify-center shrink-0 select-none">
+                      {idx + 1}
+                    </span>
+                    <input
+                      type="text"
+                      value={step}
+                      onChange={(e) => {
+                        const updated = [...editingStepsList];
+                        updated[idx] = e.target.value;
+                        setEditingStepsList(updated);
+                      }}
+                      placeholder={`Paso ${idx + 1}: Describe el movimiento...`}
+                      className="flex-1 px-2 py-1 bg-transparent text-xs sm:text-sm font-medium text-black dark:text-white placeholder:text-zinc-400 focus:outline-none"
+                    />
+                    {editingStepsList.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingStepsList(editingStepsList.filter((_, i) => i !== idx))}
+                        className="w-8 h-8 rounded-xl text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center shrink-0 transition-colors"
+                        title="Eliminar este paso"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setEditingStepsList([...editingStepsList, ""])}
+                className="w-full py-2.5 rounded-xl border border-dashed border-[#007AFF]/40 dark:border-[#0A84FF]/40 text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF]/5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Añadir paso</span>
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // Modo Lectura / Vista Detallada de Técnica
       return (
         <div className="w-full max-w-xl mx-auto px-4 py-5 space-y-6 pb-safe-nav animate-in fade-in duration-200">
-          {/* Barra superior de navegación: Cerrar + Cápsula de opciones y favorito */}
+          {/* Barra superior de navegación: Cerrar + Editar + Cápsula de opciones y favorito */}
           <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={() => {
                 setSelectedTechniqueId(null);
-                setIsEditingSteps(false);
+                setIsEditingTechnique(false);
               }}
               className="px-5 py-2 rounded-full bg-white dark:bg-[#1c2732] border border-black/[0.08] dark:border-white/[0.1] text-sm font-semibold text-zinc-900 dark:text-zinc-100 shadow-xs hover:bg-zinc-50 dark:hover:bg-[#22303e] active:scale-95 transition-all flex items-center justify-center min-h-[40px]"
             >
               Cerrar
             </button>
 
-            <div className="relative flex items-center gap-3.5 px-3.5 py-1.5 rounded-full bg-white dark:bg-[#1c2732] border border-black/[0.08] dark:border-white/[0.1] shadow-xs min-h-[40px]">
-              {/* Botón de tres puntos (...) */}
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setIsTechMenuOpen((prev) => !prev)}
-                title="Opciones"
-                aria-label="Opciones"
-                className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-colors p-1"
+                onClick={handleStartEditingTechnique}
+                className="px-4 py-2 rounded-full bg-white dark:bg-[#1c2732] border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] shadow-xs hover:bg-zinc-50 dark:hover:bg-[#22303e] active:scale-95 transition-all flex items-center gap-1.5 min-h-[40px]"
               >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                  <circle cx="5" cy="12" r="2" />
-                  <circle cx="12" cy="12" r="2" />
-                  <circle cx="19" cy="12" r="2" />
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                 </svg>
+                <span>Editar</span>
               </button>
 
-              {/* Botón de favorito (♡) */}
-              <button
-                type="button"
-                onClick={() => setIsTechFav((prev) => !prev)}
-                title="Favorito"
-                aria-label="Favorito"
-                className="text-zinc-700 dark:text-zinc-300 hover:text-red-500 transition-colors p-1 active:scale-90"
-              >
-                {isTechFav ? (
-                  <svg className="w-5 h-5 text-red-500 fill-current" viewBox="0 0 24 24">
-                    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+              <div className="relative flex items-center gap-3.5 px-3.5 py-1.5 rounded-full bg-white dark:bg-[#1c2732] border border-black/[0.08] dark:border-white/[0.1] shadow-xs min-h-[40px]">
+                {/* Botón de tres puntos (...) */}
+                <button
+                  type="button"
+                  onClick={() => setIsTechMenuOpen((prev) => !prev)}
+                  title="Opciones"
+                  aria-label="Opciones"
+                  className="text-zinc-700 dark:text-zinc-300 hover:text-black dark:hover:text-white transition-colors p-1"
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <circle cx="5" cy="12" r="2" />
+                    <circle cx="12" cy="12" r="2" />
+                    <circle cx="19" cy="12" r="2" />
                   </svg>
-                ) : (
-                  <svg className="w-5 h-5 stroke-current fill-none" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
+                </button>
+
+                {/* Botón de favorito (♡) */}
+                <button
+                  type="button"
+                  onClick={() => setIsTechFav((prev) => !prev)}
+                  title="Favorito"
+                  aria-label="Favorito"
+                  className="text-zinc-700 dark:text-zinc-300 hover:text-red-500 transition-colors p-1 active:scale-90"
+                >
+                  {isTechFav ? (
+                    <svg className="w-5 h-5 text-red-500 fill-current" viewBox="0 0 24 24">
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 stroke-current fill-none" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  )}
+                </button>
+
+                {/* Menú contextual de técnica */}
+                {isTechMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-30"
+                      onClick={() => setIsTechMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 top-12 z-40 w-44 rounded-2xl bg-white dark:bg-[#1c2732] border border-black/[0.08] dark:border-white/[0.1] shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-100 space-y-1">
+                      <button
+                        type="button"
+                        onClick={handleStartEditingTechnique}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors"
+                      >
+                        <svg className="w-4 h-4 text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                        <span>Editar técnica</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsTechMenuOpen(false);
+                          onDeleteTechnique(activeTechnique.id);
+                          setSelectedTechniqueId(null);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        <span>Eliminar técnica</span>
+                      </button>
+                    </div>
+                  </>
                 )}
-              </button>
-
-              {/* Menú contextual de técnica */}
-              {isTechMenuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-30"
-                    onClick={() => setIsTechMenuOpen(false)}
-                  />
-                  <div className="absolute right-0 top-12 z-40 w-44 rounded-2xl bg-white dark:bg-[#1c2732] border border-black/[0.08] dark:border-white/[0.1] shadow-xl p-1.5 animate-in fade-in zoom-in-95 duration-100 space-y-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsTechMenuOpen(false);
-                        handleStartEditingSteps();
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors"
-                    >
-                      <svg className="w-4 h-4 text-[#007AFF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                      <span>Editar pasos</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsTechMenuOpen(false);
-                        onDeleteTechnique(activeTechnique.id);
-                        setSelectedTechniqueId(null);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      <span>Eliminar técnica</span>
-                    </button>
-                  </div>
-                </>
-              )}
+              </div>
             </div>
           </div>
 
@@ -401,18 +660,26 @@ export function PositionsView({
 
           {/* Foto principal / Hero de la técnica */}
           <div className="rounded-[26px] overflow-hidden bg-[#101820] aspect-[4/3] sm:aspect-[16/10] relative border border-[#d6e5ef] dark:border-[#223547] shadow-xs">
-            {techPhotoUrl ? (
+            {displayPhotoUrl ? (
               <Image
-                src={techPhotoUrl}
+                src={safeImageSrc(displayPhotoUrl)}
                 alt={activeTechnique.title}
                 fill
+                unoptimized={isDataOrBlob(displayPhotoUrl)}
                 sizes="(max-width: 768px) 100vw, 600px"
                 className="object-cover"
                 priority
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-[#dbe8f2] dark:bg-[#101923] p-6">
+              <div className="w-full h-full flex flex-col items-center justify-center bg-[#dbe8f2] dark:bg-[#101923] p-6 gap-3">
                 <TechniqueIllustration index={0} title={activeTechnique.title} />
+                <button
+                  type="button"
+                  onClick={handleStartEditingTechnique}
+                  className="px-3.5 py-1.5 rounded-full bg-white dark:bg-[#1c2732] border border-black/[0.08] dark:border-white/[0.1] text-xs font-semibold text-[#007AFF] dark:text-[#0A84FF] shadow-xs hover:bg-zinc-50 dark:hover:bg-[#22303e] transition-colors"
+                >
+                  + Añadir foto
+                </button>
               </div>
             )}
           </div>
@@ -424,8 +691,9 @@ export function PositionsView({
             </h2>
             <div className="rounded-[22px] bg-[#eaf2f7] dark:bg-[#152331] p-5 border border-[#d6e5ef] dark:border-[#223547] shadow-xs">
               <p className="text-xs sm:text-sm text-[#476074] dark:text-[#9abfd7] leading-relaxed font-normal">
-                {activePosition.description ||
-                  "Posición dominante sobre el torso del oponente. Desde mount puedes atacar con llaves de brazo, estrangulaciones o pasar a controles aún más fuertes"}
+                {activeTechnique.notes ||
+                  activePosition.description ||
+                  "Sin notas específicas registradas. Toca en Editar para añadir detalles clave sobre este movimiento."}
               </p>
             </div>
           </div>
@@ -437,152 +705,40 @@ export function PositionsView({
                 Pasos
               </h2>
 
-              {!isEditingSteps ? (
-                <button
-                  type="button"
-                  onClick={handleStartEditingSteps}
-                  className="text-xs sm:text-sm font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline flex items-center gap-1 active:opacity-60"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                  <span>Editar</span>
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditingSteps(false)}
-                    disabled={isSavingSteps}
-                    className="px-3.5 py-1 rounded-full bg-zinc-200 dark:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-700 transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveSteps}
-                    disabled={isSavingSteps}
-                    className="px-4 py-1 rounded-full bg-[#007AFF] text-white text-xs font-semibold hover:bg-[#0062cc] active:scale-95 transition-all shadow-xs flex items-center gap-1.5"
-                  >
-                    {isSavingSteps ? (
-                      <>
-                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Guardando...</span>
-                      </>
-                    ) : (
-                      <span>Guardar</span>
-                    )}
-                  </button>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={handleStartEditingTechnique}
+                className="text-xs sm:text-sm font-semibold text-[#007AFF] dark:text-[#0A84FF] hover:underline flex items-center gap-1 active:opacity-60"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+                <span>Editar</span>
+              </button>
             </div>
 
             <div className="rounded-[24px] bg-[#eaf2f7] dark:bg-[#152331] border border-[#d6e5ef] dark:border-[#223547] divide-y divide-[#d6e5ef]/70 dark:divide-[#223547]/70 shadow-xs overflow-hidden">
-              {!isEditingSteps ? (
-                stepsToDisplay.map((step, idx) => (
-                  <div
-                    key={idx}
-                    onClick={handleStartEditingSteps}
-                    title="Toca para editar pasos"
-                    className="flex items-center min-h-[64px] transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03] cursor-pointer group"
-                  >
-                    <span className="w-14 sm:w-16 flex-shrink-0 text-xl sm:text-2xl font-black text-[#8faec7] dark:text-[#527a9c] text-center select-none">
-                      {idx + 1}
-                    </span>
-                    <p className="text-xs sm:text-sm font-semibold text-zinc-800 dark:text-zinc-100 py-4 pr-5 leading-snug flex-1">
-                      {step}
-                    </p>
-                    <span className="text-xs text-[#007AFF] opacity-0 group-hover:opacity-100 pr-4 transition-opacity flex items-center gap-1 font-medium">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                      <span>Editar</span>
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <>
-                  {editingStepsList.map((step, idx) => (
-                    <div key={idx} className="flex items-start gap-2.5 p-3.5 transition-colors">
-                      <span className="w-10 sm:w-12 flex-shrink-0 text-lg sm:text-xl font-black text-[#8faec7] dark:text-[#527a9c] text-center select-none pt-2">
-                        {idx + 1}
-                      </span>
-
-                      <textarea
-                        value={step}
-                        onChange={(e) => {
-                          const updated = [...editingStepsList];
-                          updated[idx] = e.target.value;
-                          setEditingStepsList(updated);
-                        }}
-                        rows={2}
-                        placeholder={`Paso ${idx + 1}...`}
-                        className="flex-1 rounded-xl bg-white dark:bg-[#1a2632] border border-black/[0.1] dark:border-white/[0.1] p-2.5 text-xs sm:text-sm font-medium text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-[#007AFF] resize-none"
-                      />
-
-                      <div className="flex flex-col gap-1 flex-shrink-0 pt-0.5">
-                        {idx > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = [...editingStepsList];
-                              const temp = updated[idx - 1];
-                              updated[idx - 1] = updated[idx];
-                              updated[idx] = temp;
-                              setEditingStepsList(updated);
-                            }}
-                            title="Mover arriba"
-                            className="w-6 h-6 rounded-md bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] text-zinc-500 hover:text-black dark:hover:text-white flex items-center justify-center transition-colors text-xs"
-                          >
-                            ▲
-                          </button>
-                        )}
-
-                        {idx < editingStepsList.length - 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = [...editingStepsList];
-                              const temp = updated[idx + 1];
-                              updated[idx + 1] = updated[idx];
-                              updated[idx] = temp;
-                              setEditingStepsList(updated);
-                            }}
-                            title="Mover abajo"
-                            className="w-6 h-6 rounded-md bg-black/[0.04] dark:bg-white/[0.06] hover:bg-black/[0.08] dark:hover:bg-white/[0.12] text-zinc-500 hover:text-black dark:hover:text-white flex items-center justify-center transition-colors text-xs"
-                          >
-                            ▼
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingStepsList(editingStepsList.filter((_, i) => i !== idx));
-                          }}
-                          title="Eliminar este paso"
-                          className="w-6 h-6 rounded-md bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/60 text-red-500 flex items-center justify-center transition-colors text-xs font-bold"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-
-                  <div className="p-3 bg-white/40 dark:bg-[#121c26]/40">
-                    <button
-                      type="button"
-                      onClick={() => setEditingStepsList([...editingStepsList, ""])}
-                      className="w-full py-2.5 rounded-xl border border-dashed border-[#8faec7] dark:border-[#35536b] text-[#007AFF] dark:text-[#0A84FF] hover:bg-[#007AFF]/5 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                      </svg>
-                      <span>Añadir paso</span>
-                    </button>
-                  </div>
-                </>
-              )}
+              {stepsToDisplay.map((step, idx) => (
+                <div
+                  key={idx}
+                  onClick={handleStartEditingTechnique}
+                  title="Toca para editar"
+                  className="flex items-center min-h-[64px] transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.03] cursor-pointer group"
+                >
+                  <span className="w-14 sm:w-16 flex-shrink-0 text-xl sm:text-2xl font-black text-[#8faec7] dark:text-[#527a9c] text-center select-none">
+                    {idx + 1}
+                  </span>
+                  <p className="text-xs sm:text-sm font-semibold text-zinc-800 dark:text-zinc-100 py-4 pr-5 leading-snug flex-1">
+                    {step}
+                  </p>
+                  <span className="text-xs text-[#007AFF] opacity-0 group-hover:opacity-100 pr-4 transition-opacity flex items-center gap-1 font-medium">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                    <span>Editar</span>
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -643,10 +799,11 @@ export function PositionsView({
           <div className="w-28 h-28 sm:w-36 sm:h-36 flex-shrink-0 flex items-center justify-center rounded-2xl overflow-hidden relative">
             {activePosition.imageUrl ? (
               <Image
-                src={encodeURI(activePosition.imageUrl)}
+                src={safeImageSrc(activePosition.imageUrl)}
                 alt={activePosition.title}
                 width={160}
                 height={160}
+                unoptimized={isDataOrBlob(activePosition.imageUrl)}
                 className="w-full h-full object-contain drop-shadow-xs"
                 priority
               />
@@ -687,7 +844,7 @@ export function PositionsView({
 
           <div className="flex gap-3.5 overflow-x-auto pb-3 pt-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-none">
             {activePosition.techniques.map((tech, idx) => {
-              const techThumb = getTechniqueImage(tech.title);
+              const techThumb = tech.imageUrl || getTechniqueImage(tech.title);
               return (
                 <div
                   key={tech.id}
@@ -698,9 +855,10 @@ export function PositionsView({
                   <div className="h-32 sm:h-36 w-full bg-[#dbe8f2] dark:bg-[#101923] flex items-center justify-center overflow-hidden relative">
                     {techThumb ? (
                       <Image
-                        src={techThumb}
+                        src={safeImageSrc(techThumb)}
                         alt={tech.title}
                         fill
+                        unoptimized={isDataOrBlob(techThumb)}
                         sizes="(max-width: 768px) 180px, 200px"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
@@ -914,12 +1072,12 @@ export function PositionsView({
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-6 space-y-6 pb-safe-nav">
       {/* Cabecera del módulo principal */}
-      <header className="flex items-center justify-between border-b border-black/[0.08] dark:border-white/[0.08] pb-4">
-        <div>
+      <header className="flex items-center justify-between gap-3.5 sm:gap-4 border-b border-black/[0.08] dark:border-white/[0.08] pb-4">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight text-black dark:text-white">
             Categorías de BJJ
           </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
             Posiciones, guardias, leg locks, derribos y pases con sus técnicas
           </p>
         </div>
@@ -927,7 +1085,7 @@ export function PositionsView({
         <button
           type="button"
           onClick={() => onAddPositionClick(activeCategoryId)}
-          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#007AFF] dark:bg-[#0A84FF] text-white text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm min-h-[36px]"
+          className="shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#007AFF] dark:bg-[#0A84FF] text-white text-xs font-semibold hover:opacity-90 active:scale-95 transition-all shadow-sm min-h-[36px]"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -1080,10 +1238,11 @@ export function PositionsView({
                         >
                           {pos.imageUrl ? (
                             <Image
-                              src={encodeURI(pos.imageUrl)}
+                              src={safeImageSrc(pos.imageUrl)}
                               alt={pos.title}
                               width={300}
                               height={300}
+                              unoptimized={isDataOrBlob(pos.imageUrl)}
                               style={{ borderRadius: "18px" }}
                               className="w-full h-full object-cover rounded-2xl transition-transform duration-300 ease-out group-hover/card:scale-105"
                               priority={pos.sortOrder <= 4}

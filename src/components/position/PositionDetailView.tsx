@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import type { PositionWithRelations, Technique } from "@/types/bjj";
 import { BjjIconPlaceholder } from "@/components/common/BjjIconPlaceholder";
+import { safeImageSrc, isDataOrBlob } from "@/lib/imageCompression";
 import { MediaEmbed } from "@/components/media/MediaEmbed";
 
 interface PositionDetailViewProps {
@@ -67,10 +68,11 @@ export function PositionDetailView({
       >
         {position.imageUrl ? (
           <Image
-            src={encodeURI(position.imageUrl)}
+            src={safeImageSrc(position.imageUrl)}
             alt={position.title}
             width={280}
             height={280}
+            unoptimized={isDataOrBlob(position.imageUrl)}
             style={{ borderRadius: "18px" }}
             className="w-full h-full object-contain rounded-2xl"
             priority

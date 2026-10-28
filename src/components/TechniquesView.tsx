@@ -57,6 +57,8 @@ export function TechniquesView({ initialPositions }: TechniquesViewProps) {
       id: tempId,
       positionId: activePosition.id,
       title: newTechTitle.trim(),
+      notes: null,
+      imageUrl: null,
       steps: steps.length > 0 ? steps : ["Asegurar control de base"],
       sortOrder: activePosition.techniques.length + 1,
       createdAt: new Date(),
@@ -186,12 +188,12 @@ export function TechniquesView({ initialPositions }: TechniquesViewProps) {
   return (
     <div className="w-full max-w-2xl mx-auto px-4 py-6 space-y-6 pb-20">
       {/* Cabecera principal limpia */}
-      <header className="flex items-center justify-between border-b border-black/[0.06] dark:border-white/[0.08] pb-4">
-        <div>
+      <header className="flex items-center justify-between gap-3.5 sm:gap-4 border-b border-black/[0.06] dark:border-white/[0.08] pb-4">
+        <div className="min-w-0 flex-1">
           <h1 className="text-2xl font-bold tracking-tight text-zinc-950 dark:text-zinc-50">
             Técnicas de BJJ
           </h1>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 leading-relaxed">
             Posiciones y movimientos registrados
           </p>
         </div>
@@ -199,7 +201,7 @@ export function TechniquesView({ initialPositions }: TechniquesViewProps) {
         <button
           type="button"
           onClick={() => setIsAddPosModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all shadow-sm min-h-[36px]"
+          className="shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 active:scale-95 transition-all shadow-sm min-h-[36px]"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
